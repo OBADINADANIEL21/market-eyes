@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { getItemEmoji, prices } from "../data";
 import { useSettings } from "../context/SettingsContext";
+import { supabase, supabaseConfigError } from "../lib/supabase";
 import useLocalStorage from "../hooks/useLocalStorage";
 import EmptyState from "./EmptyState";
 
@@ -42,6 +43,8 @@ export default function Report() {
   const { t, mama } = useSettings();
   const [form, setForm] = useState(emptyForm);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   // Saved on this device and restored after a reload
   const [reports, setReports] = useLocalStorage(STORAGE_KEY, []);
   const timer = useRef(null);
@@ -63,8 +66,10 @@ export default function Report() {
 
   const handleChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitting(true);
+    setSubmitError("");
     const newReport = {
       id: Date.now(),
       name: form.name.trim(),
@@ -77,11 +82,32 @@ export default function Report() {
       price: Number(form.price),
       date: new Date().toLocaleDateString(),
     };
-    setReports((prev) => [newReport, ...prev]);
-    setForm(emptyForm);
-    setSubmitted(true);
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => setSubmitted(false), 4000);
+
+    try {
+      if (!supabase) throw new Error(supabaseConfigError);
+      const { error } = await supabase.from("reports").insert({
+        name: newReport.name,
+        country: newReport.country,
+        city: newReport.city,
+        market: newReport.market,
+        item: newReport.item,
+        unit: newReport.unit,
+        currency: newReport.currency,
+        price: newReport.price,
+      });
+      if (error) throw error;
+
+      setReports((prev) => [newReport, ...prev]);
+      setForm(emptyForm);
+      setSubmitted(true);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => setSubmitted(false), 5000);
+    } catch (error) {
+      console.error("Could not save report to Supabase:", error);
+      setSubmitError(error.message || t("report.saveError"));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const clearAll = () => {
@@ -98,6 +124,12 @@ export default function Report() {
       <div className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-sm text-amber-950">
         {t("report.localOnly")}
       </div>
+
+      {submitError && (
+        <div role="alert" className="mb-6 rounded-2xl border border-red-300 bg-red-50 px-5 py-4 text-sm text-red-800">
+          {t("report.saveError")}
+        </div>
+      )}
 
       {submitted && (
         <div
@@ -144,9 +176,10 @@ export default function Report() {
 
         <button
           type="submit"
+          disabled={submitting}
           className="md:col-span-2 bg-brand text-white font-bold text-lg py-4 rounded-2xl shadow-lg hover:scale-[1.02] hover:bg-brand-dark active:scale-95 transition-all duration-200"
         >
-          {t("report.submit")}
+          {submitting ? t("report.saving") : t("report.submit")}
         </button>
       </form>
 
@@ -158,6 +191,7 @@ export default function Report() {
         />
       ) : (
         <div>
+          <p className="mb-4 text-sm text-gray-500">{t("report.localHistory")}</p>
           <div className="flex items-center justify-between gap-3 mb-4">
             <h2 className="text-2xl font-extrabold text-gray-900">
               {t("report.community", { n: reports.length })}

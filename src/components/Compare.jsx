@@ -14,7 +14,7 @@ const tones = {
 
 export default function Compare() {
   const { t, mama } = useSettings();
-  const { prices, rates, loading } = useLivePrices();
+  const { prices, rates, loading, dataSource, dataError } = useLivePrices();
   const compareCities = useMemo(() => [...new Set(prices.map((p) => p.city))], [prices]);
   const items = useMemo(() => [...new Set(prices.map((p) => p.item))], [prices]);
   const [selectedItem, setSelectedItem] = useState(items[0]);
@@ -47,6 +47,11 @@ export default function Compare() {
     <div className="max-w-5xl mx-auto px-4 py-10">
       <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-2">{t("compare.title")}</h1>
       {!mama && <p className="text-gray-500 mb-8">{t("compare.subtitle")}</p>}
+      {dataSource !== "supabase" && (
+        <div role="status" className="mb-6 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          {t("prices.fallback")}
+        </div>
+      )}
 
       <div className="mb-6">
         <label className="block text-sm font-semibold text-gray-700 mb-2">{t("compare.choose")}</label>
@@ -116,6 +121,8 @@ export default function Compare() {
                           ? "SIMULATED · NOT A MARKET QUOTE"
                           : entry.priceSource === "commodity-api"
                             ? "COMMODITY BENCHMARK · NOT RETAIL"
+                            : entry.priceSource === "supabase"
+                              ? "SUPABASE LISTING"
                             : "ESTIMATE · NOT VERIFIED"}
                       </span>
                       {loading && <span className="text-xs text-gray-500">Loading exchange-rate data...</span>}

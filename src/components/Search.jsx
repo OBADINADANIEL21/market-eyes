@@ -10,7 +10,7 @@ const selectCls =
 
 export default function Search({ goTo }) {
   const { t, mama, lang } = useSettings();
-  const { prices, rates, loading, lastUpdated, now } = useLivePrices();
+  const { prices, rates, loading, lastUpdated, now, dataSource, dataError } = useLivePrices();
   const [country, setCountry] = useState("");
   const [city, setCity] = useState("");
   const [query, setQuery] = useState("");
@@ -100,6 +100,11 @@ export default function Search({ goTo }) {
     <div className="max-w-7xl mx-auto px-4 py-10">
       <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-2">{t("search.title")}</h1>
       {!mama && <p className="text-gray-500 mb-8">{t("search.subtitle")}</p>}
+      {dataSource !== "supabase" && (
+        <div role="status" className="mb-6 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          {t("prices.fallback")}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="bg-white rounded-2xl shadow-lg p-5 mb-6 grid md:grid-cols-3 gap-4">

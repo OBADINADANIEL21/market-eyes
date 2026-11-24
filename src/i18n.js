@@ -23,6 +23,7 @@ export const translations = {
     // Featured
     "featured.title": "Market Price Estimates",
     "featured.subtitle": "Demo estimates and simulations, not independently verified market quotes",
+    "prices.fallback": "Live prices are temporarily unavailable. Sample estimates are shown instead.",
     "featured.seeAll": "See all prices →",
 
     // Price card
@@ -89,9 +90,12 @@ export const translations = {
     // Report
     "report.title": "Report a Price 📝",
     "report.subtitle": "Record what you paid, including the item size or quantity.",
-    "report.localOnly": "Reports are saved only in this browser on this device. They are not shared, independently verified, or used to confirm market prices.",
+    "report.localOnly": "Price reports are user-submitted and are not independently verified. Reports submitted here appear in this browser's recent list.",
+    "report.localHistory": "Recent reports submitted from this browser.",
     "report.unverified": "User-submitted · not independently verified",
-    "report.thanks": "✅ Report saved on this device. It is not independently verified or shared.",
+    "report.thanks": "✅ Thank you! Your report was submitted. It has not been independently verified.",
+    "report.saving": "Saving report…",
+    "report.saveError": "Could not save your report. Please try again.",
     "report.name": "Your Name",
     "report.country": "Country",
     "report.city": "City",
@@ -101,12 +105,12 @@ export const translations = {
     "report.currency": "Currency",
     "report.price": "Price Paid",
     "report.submit": "Submit Report 🚀",
-    "report.community": "Reports saved on this device ({n})",
-    "report.by": "Submitted here by {name} · {date}",
+    "report.community": "Recent reports ({n})",
+    "report.by": "Submitted by {name} · {date}",
     "report.emptyTitle": "No reports yet",
     "report.emptyBody": "Be the first to report a price. Your reports are saved on this device.",
     "report.clear": "Clear all",
-    "report.clearConfirm": "Delete all saved reports on this device?",
+    "report.clearConfirm": "Delete the locally cached reports from this browser? This does not delete database reports.",
 
     // Footer
     "footer.tagline":
@@ -131,6 +135,7 @@ export const translations = {
 
     "featured.title": "Market Price Estimates",
     "featured.subtitle": "Demo estimates and simulations, dem never verify am for market",
+    "prices.fallback": "Live prices no dey available for now. We dey show sample estimates instead.",
     "featured.seeAll": "See all prices →",
 
     "trend.up": "▲ E Dey Go Up",
@@ -190,9 +195,12 @@ export const translations = {
 
     "report.title": "Report a Price 📝",
     "report.subtitle": "Write wetin you pay and include item size or quantity.",
-    "report.localOnly": "Reports dey save for this browser and device only. Dem no dey shared, independently verified, or used to confirm market price.",
+    "report.localOnly": "Na users dey submit price reports; nobody verify am independently. Reports wey you submit here go show for this browser recent list.",
+    "report.localHistory": "Na recent reports wey dem submit from this browser.",
     "report.unverified": "User report · nobody verify am independently",
-    "report.thanks": "✅ We save the report for this device. Nobody verify am or share am.",
+    "report.thanks": "✅ Thank you! We submit your report. Nobody verify am independently.",
+    "report.saving": "We dey save report…",
+    "report.saveError": "We no fit save your report. Abeg try again.",
     "report.name": "Your Name",
     "report.country": "Country",
     "report.city": "City",
@@ -202,12 +210,12 @@ export const translations = {
     "report.currency": "Currency",
     "report.price": "Price Wey You Pay",
     "report.submit": "Send Report 🚀",
-    "report.community": "Reports wey save for this device ({n})",
-    "report.by": "{name} submit am here · {date}",
+    "report.community": "Recent reports ({n})",
+    "report.by": "{name} submit am · {date}",
     "report.emptyTitle": "Nobody don report yet",
     "report.emptyBody": "Be the first person to report price. We go save your report for this phone.",
     "report.clear": "Clear all",
-    "report.clearConfirm": "Delete all the reports wey dey this device?",
+    "report.clearConfirm": "Delete reports wey this browser cache? E no go delete reports wey dey database.",
 
     "footer.tagline":
       "Check market price estimates for Africa, Asia, Europe, North America, South America and Australia.",

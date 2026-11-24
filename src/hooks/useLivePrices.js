@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { prices as catalogPrices, usdRates as fallbackRates } from "../data";
+import { supabase, supabaseConfigError } from "../lib/supabase";
 
 const RATE_URL = "https://open.er-api.com/v6/latest/USD";
 const COMMODITY_URL = "https://commodities-api.com/api/latest";
@@ -148,6 +149,57 @@ function makePrices(rates, commodityRates, simulation) {
   return [...makeLagosPrices(simulation, rates), ...updatedCatalog, ...globalBenchmarks];
 }
 
+function makeSupabasePrices(rows, rates) {
+  return rows.flatMap((row, index) => {
+    const item = row.item ?? row.item_name ?? row.product;
+    const city = row.city ?? row.location;
+    const market = row.market ?? row.market_name;
+    const country = row.country ?? "Nigeria";
+    const currency = String(row.currency ?? row.currency_code ?? "NGN").toUpperCase();
+    const price = Number(row.price ?? row.price_amount);
+
+    if (
+      typeof item !== "string" ||
+      typeof city !== "string" ||
+      typeof market !== "string" ||
+      !Number.isFinite(price) ||
+      price <= 0
+    ) {
+      return [];
+    }
+
+    const rate = rates[currency] ?? fallbackCatalogUsdRates[currency];
+    const usdPrice = currency === "USD" ? price : Number.isFinite(rate) && rate > 0 ? price / rate : null;
+    if (usdPrice === null) return [];
+
+    return [{
+      id: String(row.id ?? `supabase-price-${index}`),
+      item,
+      country,
+      city,
+      market,
+      unit: row.unit ?? row.pack_size ?? row.quantity ?? "",
+      price,
+      currency,
+      trend: "stable",
+      verifiedCount: Number(row.verified_count ?? row.report_count ?? 0),
+      verifiedToday: 0,
+      usdPrice,
+      priceSource: "supabase",
+      createdAt: row.created_at ?? null,
+      live: false,
+    }];
+  });
+}
+
+async function fetchSupabasePrices() {
+  if (!supabase) return { rows: null, error: supabaseConfigError };
+
+  const { data, error } = await supabase.from("prices").select("*").limit(500);
+  if (error) return { rows: null, error: error.message };
+  return { rows: data ?? [], error: null };
+}
+
 async function fetchRates(signal) {
   const response = await fetch(RATE_URL, { signal });
   if (!response.ok) throw new Error(`Exchange-rate service returned ${response.status}`);
@@ -211,6 +263,8 @@ export function useLivePrices() {
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [now, setNow] = useState(Date.now());
+  const [databaseRows, setDatabaseRows] = useState(null);
+  const [dataError, setDataError] = useState(supabaseConfigError);
 
   useEffect(() => {
     let active = true;
@@ -220,7 +274,7 @@ export function useLivePrices() {
       const timeout = window.setTimeout(() => controller.abort(), 10_000);
 
       try {
-        const [nextRates, nextCommodityRates] = await Promise.all([
+        const [nextRates, nextCommodityRates, priceResult] = await Promise.all([
           fetchRates(controller.signal).catch((error) => {
             if (error.name !== "AbortError") console.error("Could not refresh exchange rates:", error);
             return null;
@@ -229,6 +283,10 @@ export function useLivePrices() {
             if (error.name !== "AbortError") console.error("Could not refresh commodity prices:", error);
             return null;
           }),
+          fetchSupabasePrices().catch((error) => {
+            console.error("Could not load Supabase prices:", error);
+            return { rows: null, error: error.message };
+          }),
         ]);
 
         if (!active) return;
@@ -236,6 +294,13 @@ export function useLivePrices() {
           setRates(nextRates);
         }
         if (nextCommodityRates) setCommodityRates(nextCommodityRates);
+        if (priceResult.rows?.length) {
+          setDatabaseRows(priceResult.rows);
+          setDataError(null);
+        } else {
+          setDatabaseRows(null);
+          setDataError(priceResult.error);
+        }
       } catch (error) {
         if (error.name !== "AbortError") console.error("Could not refresh live prices:", error);
       } finally {
@@ -280,14 +345,26 @@ export function useLivePrices() {
     };
   }, []);
 
-  const prices = useMemo(
-    () => makePrices(rates, commodityRates, simulation),
-    [rates, commodityRates, simulation]
+  const supabasePrices = useMemo(
+    () => databaseRows ? makeSupabasePrices(databaseRows, rates) : [],
+    [databaseRows, rates]
   );
+  const prices = useMemo(
+    () => supabasePrices.length
+      ? supabasePrices
+      : makePrices(rates, commodityRates, simulation),
+    [supabasePrices, rates, commodityRates, simulation]
+  );
+  const dataSource = supabasePrices.length ? "supabase" : "simulation";
+  const visibleDataError =
+    dataError ||
+    (databaseRows?.length && !supabasePrices.length
+      ? "The Supabase prices table has rows, but none match the expected price fields."
+      : null);
   const trend = useMemo(
     () => Object.fromEntries(prices.map((entry) => [entry.id, entry.trend])),
     [prices]
   );
 
-  return { prices, rates, loading, lastUpdated, trend, now };
+  return { prices, rates, loading, lastUpdated, trend, now, dataSource, dataError: visibleDataError };
 }

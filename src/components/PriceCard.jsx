@@ -26,6 +26,8 @@ export default function PriceCard({
       ? "SIMULATED · NOT A MARKET QUOTE"
       : entry.priceSource === "commodity-api"
         ? "COMMODITY BENCHMARK · NOT RETAIL"
+        : entry.priceSource === "supabase"
+          ? "SUPABASE LISTING · VERIFY BEFORE BUYING"
         : entry.priceSource === "estimate"
           ? "ESTIMATE · NOT VERIFIED"
           : "SAMPLE ESTIMATE · NOT VERIFIED";

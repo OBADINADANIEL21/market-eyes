@@ -12,7 +12,7 @@ const steps = [
 
 export default function Home({ goTo }) {
   const { t, mama, lang } = useSettings();
-  const { prices, rates, loading, lastUpdated, now } = useLivePrices();
+  const { prices, rates, loading, lastUpdated, now, dataSource, dataError } = useLivePrices();
   const featured = [
     ["Rice (50kg)", "Lagos"],
     ["Tomatoes (1kg)", "Lagos"],
@@ -71,6 +71,14 @@ export default function Home({ goTo }) {
           )}
         </div>
       </section>
+
+      {dataSource !== "supabase" && (
+        <div className="max-w-7xl mx-auto px-4 pt-5">
+          <div role="status" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            {t("prices.fallback")}
+          </div>
+        </div>
+      )}
 
       {/* ===== FEATURED PRICES ===== */}
       <section className="max-w-7xl mx-auto px-4 py-14">
@@ -131,7 +139,7 @@ export default function Home({ goTo }) {
       </section>
 
       {/* ===== LEADERBOARD ===== */}
-      <Leaderboard prices={prices} />
+      <Leaderboard prices={prices} dataSource={dataSource} />
 
     </div>
   );
