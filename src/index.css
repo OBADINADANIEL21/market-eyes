@@ -1,0 +1,172 @@
+﻿@import "tailwindcss";
+
+/* ===== MARKET EYE - Design tokens =====
+   Declared with @theme so Tailwind generates bg-brand, text-brand,
+   border-brand, from-brand ... utilities from one source of truth. */
+@theme {
+  --color-brand: #0a7a42;
+  --color-brand-dark: #0b5d35;
+  --color-brand-soft: #ecfdf5;
+}
+
+/* ===== Base ===== */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    background-color: #f9fafb;
+  }
+  /* Visible keyboard focus everywhere */
+  :focus-visible {
+    outline: 3px solid var(--color-brand);
+    outline-offset: 2px;
+    border-radius: 0.5rem;
+  }
+}
+
+/* ===== Components =====
+   Custom classes live in @layer components so Tailwind utilities
+   (e.g. `hover:scale-105`, `p-6`) can always override them. */
+@layer components {
+  /* Cards: hover lift */
+  .price-card {
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+  .price-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 20px 35px -10px rgba(10, 122, 66, 0.25);
+  }
+
+  /* Navbar buttons */
+  .nav-btn {
+    transition: transform 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+  }
+  .nav-btn:hover {
+    transform: scale(1.07);
+  }
+
+  /* Hide scrollbar on the mobile nav strip but keep it scrollable */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hero heading float-up */
+  .hero-animate {
+    animation: floatUp 0.9s ease-out both;
+  }
+
+  /* Page change fade */
+  .page-enter {
+    animation: pageIn 0.45s ease-out both;
+  }
+
+  /* Staggered card entrance (set animation-delay inline) */
+  .card-enter {
+    animation: floatUp 0.55s ease-out both;
+  }
+
+  /* 7-day chart bars grow up from the baseline */
+  .bar-grow {
+    transform-origin: bottom;
+    animation: growY 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* Compare bars grow from the left */
+  .bar-fill {
+    transform-origin: left;
+    animation: growX 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* Gentle pulsing "live" dot */
+  .live-dot {
+    animation: pulseDot 1.8s ease-in-out infinite;
+  }
+
+  /* Logo eye blinks now and then */
+  .logo-eye {
+    animation: blink 6s ease-in-out infinite;
+    transform-origin: center;
+  }
+
+  /* Compare / table scrollbar */
+  .compare-table {
+    -webkit-overflow-scrolling: touch;
+  }
+  .compare-table::-webkit-scrollbar {
+    height: 8px;
+  }
+  .compare-table::-webkit-scrollbar-track {
+    background: #ecfdf5;
+    border-radius: 999px;
+  }
+  .compare-table::-webkit-scrollbar-thumb {
+    background: var(--color-brand);
+    border-radius: 999px;
+  }
+  .compare-table::-webkit-scrollbar-thumb:hover {
+    background: var(--color-brand-dark);
+  }
+
+  /* ===== MAMA MODE =====
+     Tailwind text sizes read from --text-* variables, so overriding them on
+     the .mama-mode wrapper makes every text-* utility inside it bigger.
+     xs-2xl are doubled; the very large heading sizes are scaled less so
+     they never overflow a phone screen. */
+  .mama-mode {
+    --text-xs: 1.5rem;
+    --text-sm: 1.75rem;
+    --text-base: 2rem;
+    --text-lg: 2.25rem;
+    --text-xl: 2.5rem;
+    --text-2xl: 3rem;
+    --text-3xl: 3.25rem;
+    --text-4xl: 3.5rem;
+    --text-5xl: 4rem;
+    --text-6xl: 4.5rem;
+    overflow-wrap: anywhere;
+  }
+  /* Bigger tap targets for buttons and form controls */
+  .mama-mode :is(button, select, input) {
+    min-height: 3.75rem;
+  }
+}
+
+/* ===== Keyframes ===== */
+@keyframes floatUp {
+  0% { opacity: 0; transform: translateY(30px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes pageIn {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes growY {
+  0% { transform: scaleY(0); }
+  100% { transform: scaleY(1); }
+}
+@keyframes growX {
+  0% { transform: scaleX(0); }
+  100% { transform: scaleX(1); }
+}
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.5); }
+}
+@keyframes blink {
+  0%, 94%, 100% { transform: scaleY(1); }
+  97% { transform: scaleY(0.1); }
+}
+
+/* Respect users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
