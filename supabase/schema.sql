@@ -47,13 +47,59 @@ alter table public.reports
 alter table public.prices enable row level security;
 alter table public.reports enable row level security;
 
+delete from public.reports
+where name = ''
+  and country = ''
+  and city = ''
+  and market = ''
+  and item = ''
+  and unit = ''
+  and currency = ''
+  and price = 0;
+
 drop policy if exists "Public can read prices" on public.prices;
 create policy "Public can read prices"
   on public.prices for select
   to anon, authenticated
   using (true);
 
-drop policy if exists "Public can submit reports" on public.reports;
+do $$
+declare
+  existing_policy record;
+begin
+  for existing_policy in
+    select policyname
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'reports'
+  loop
+    execute format('drop policy %I on public.reports', existing_policy.policyname);
+  end loop;
+end
+$$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'reports_valid_submission'
+      and conrelid = 'public.reports'::regclass
+  ) then
+    alter table public.reports
+      add constraint reports_valid_submission check (
+        length(trim(name)) > 0
+        and length(trim(country)) > 0
+        and length(trim(city)) > 0
+        and length(trim(market)) > 0
+        and length(trim(item)) > 0
+        and length(trim(unit)) > 0
+        and length(trim(currency)) > 0
+        and price > 0
+      ) not valid;
+  end if;
+end
+$$;
+
 create policy "Public can submit reports"
   on public.reports for insert
   to anon, authenticated
