@@ -23,6 +23,27 @@ create table if not exists public.reports (
   created_at timestamptz not null default now()
 );
 
+alter table public.prices
+  add column if not exists item text,
+  add column if not exists country text default 'Nigeria',
+  add column if not exists city text,
+  add column if not exists market text,
+  add column if not exists unit text,
+  add column if not exists price numeric(12, 2),
+  add column if not exists currency text default 'NGN',
+  add column if not exists created_at timestamptz default now();
+
+alter table public.reports
+  add column if not exists name text,
+  add column if not exists country text,
+  add column if not exists city text,
+  add column if not exists market text,
+  add column if not exists item text,
+  add column if not exists unit text,
+  add column if not exists currency text,
+  add column if not exists price numeric(12, 2),
+  add column if not exists created_at timestamptz default now();
+
 alter table public.prices enable row level security;
 alter table public.reports enable row level security;
 
@@ -50,3 +71,5 @@ create policy "Public can submit reports"
 grant select on public.prices to anon, authenticated;
 revoke all on public.reports from anon, authenticated;
 grant insert on public.reports to anon, authenticated;
+
+notify pgrst, 'reload schema';
