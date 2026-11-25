@@ -11,7 +11,7 @@ const SettingsContext = createContext(null);
 const loadSettings = () => {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    return { mama: Boolean(saved.mama), lang: saved.lang === "pn" ? "pn" : "en" };
+    return { mama: Boolean(saved.mama), lang: ["pn", "yo"].includes(saved.lang) ? saved.lang : "en" };
   } catch {
     return { mama: false, lang: "en" };
   }

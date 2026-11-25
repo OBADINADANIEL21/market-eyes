@@ -10,10 +10,12 @@ const selectCls =
 
 export default function Search({ goTo }) {
   const { t, mama, lang } = useSettings();
-  const { prices, rates, loading, lastUpdated, now, dataSource, dataError } = useLivePrices();
+  const { prices, rates, loading, loadingMore, hasMore, loadMore, lastUpdated, now, dataSource, dataError } = useLivePrices();
   const [country, setCountry] = useState("");
   const [city, setCity] = useState("");
   const [query, setQuery] = useState("");
+  const [listingMode, setListingMode] = useState("all");
+  const [marketFilter, setMarketFilter] = useState("");
   const [voiceStatus, setVoiceStatus] = useState("");
   const recognitionRef = useRef(null);
 
@@ -38,15 +40,41 @@ export default function Search({ goTo }) {
 
     const recognition = new SpeechRecognition();
     recognitionRef.current = recognition;
-    recognition.lang = lang === "pn" ? "en-NG" : "en-US";
+    recognition.lang = lang === "yo" ? "yo-NG" : "en-NG";
     recognition.interimResults = false;
     recognition.continuous = false;
 
     setVoiceStatus(lang === "pn" ? "Dey listen..." : "Listening...");
     recognition.onresult = (event) => {
       const transcript = event.results[0][0].transcript.trim();
-      setQuery(transcript);
-      setVoiceStatus(lang === "pn" ? `We hear: ${transcript}` : `Heard: ${transcript}`);
+      const normalized = transcript.toLowerCase();
+      const itemMatch = prices.find((price) => normalized.includes(price.item.split(" (")[0].toLowerCase()));
+      const marketMatch = prices.find((price) =>
+        normalized.includes(price.market.toLowerCase()) ||
+        normalized.includes(price.market.replace(/\s+market$/i, "").toLowerCase())
+      );
+      const itemQuery = itemMatch?.item.split(" (")[0] ?? transcript;
+      setQuery(itemQuery);
+      if (marketMatch) {
+        setListingMode("market");
+        setMarketFilter(marketMatch.market);
+      }
+      const matchedPrice = prices.find((price) =>
+        price.item.toLowerCase().includes(itemQuery.toLowerCase()) &&
+        (!marketMatch || price.market === marketMatch.market)
+      );
+      const answer = matchedPrice
+        ? `${matchedPrice.item} at ${matchedPrice.market} is ${matchedPrice.price.toLocaleString()} ${matchedPrice.currency}. This is a listing; please confirm it at the market.`
+        : `We do not have a listing for ${itemQuery}${marketMatch ? ` in ${marketMatch.market}` : ""} yet.`;
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+        const speech = new SpeechSynthesisUtterance(
+          lang === "pn" ? answer.replace("is ", "na ").replace("We do not have", "We no get") : answer
+        );
+        speech.lang = lang === "yo" ? "yo-NG" : "en-NG";
+        window.speechSynthesis.speak(speech);
+      }
+      setVoiceStatus(lang === "pn" ? `We hear: ${transcript}` : lang === "yo" ? `A gbọ́: ${transcript}` : `Heard: ${transcript}`);
     };
     recognition.onerror = (event) => {
       const message =
@@ -71,9 +99,10 @@ export default function Search({ goTo }) {
       const matchCountry = !country || p.country === country;
       const matchCity = !city || p.city === city;
       const matchQuery = !q || p.item.toLowerCase().includes(q) || p.market.toLowerCase().includes(q);
-      return matchCountry && matchCity && matchQuery;
+      const matchMarket = listingMode !== "market" || !marketFilter || p.market === marketFilter;
+      return matchCountry && matchCity && matchQuery && matchMarket;
     });
-  }, [country, city, query, prices]);
+  }, [country, city, query, listingMode, marketFilter, prices]);
 
   // Average per item+city — a price >20% above it gets a cheat alert
   const averages = useMemo(() => {
@@ -89,11 +118,13 @@ export default function Search({ goTo }) {
     return avg;
   }, [prices]);
 
-  const hasFilters = Boolean(country || city || query);
+  const hasFilters = Boolean(country || city || query || marketFilter);
   const clearFilters = () => {
     setCountry("");
     setCity("");
     setQuery("");
+    setMarketFilter("");
+    setListingMode("all");
   };
 
   return (
@@ -107,7 +138,16 @@ export default function Search({ goTo }) {
       )}
 
       {/* Filters */}
+      <div className="mb-4 flex gap-2" role="tablist" aria-label="Price search mode">
+        {[["all", "All Items"], ["market", "By Market"]].map(([value, label]) => <button key={value} role="tab" aria-selected={listingMode === value} onClick={() => setListingMode(value)} className={`rounded-full px-4 py-2 font-semibold ${listingMode === value ? "bg-brand text-white" : "bg-white text-gray-700"}`}>{label}</button>)}
+      </div>
       <div className="bg-white rounded-2xl shadow-lg p-5 mb-6 grid md:grid-cols-3 gap-4">
+        {listingMode === "market" && <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1">Market</label>
+          <select value={marketFilter} onChange={(event) => setMarketFilter(event.target.value)} className={selectCls}>
+            <option value="">All markets</option>{[...new Set(prices.map((price) => price.market))].map((name) => <option key={name}>{name}</option>)}
+          </select>
+        </div>}
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1">{t("search.country")}</label>
           <select
@@ -190,11 +230,11 @@ export default function Search({ goTo }) {
         {t(filtered.length === 1 ? "search.foundOne" : "search.foundMany", { n: filtered.length })}
       </div>
 
-      <div className={`grid gap-5 ${mama ? "grid-cols-1 md:grid-cols-2" : "md:grid-cols-2 lg:grid-cols-3"}`}>
+      {filtered.length === 0 && loading ? <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((item) => <div key={item} className="h-52 animate-pulse rounded-2xl bg-gray-200" />)}</div> : <div className={`grid gap-5 ${mama ? "grid-cols-1 md:grid-cols-2" : "md:grid-cols-2 lg:grid-cols-3"}`}>
         {filtered.map((p, i) => {
           const avg = averages[`${p.item}__${p.city}`];
           const isCheat =
-            p.priceSource === "community-verified" && Boolean(avg) && p.price > avg * 1.2;
+            p.priceSource === "supabase" && Boolean(avg) && p.price > avg * 1.2;
           return (
             <div key={p.id} className="card-enter" style={{ animationDelay: `${Math.min(i, 12) * 40}ms` }}>
               <PriceCard
@@ -204,11 +244,13 @@ export default function Search({ goTo }) {
                 lastUpdated={lastUpdated}
                 now={now}
                 rates={rates}
+                goTo={goTo}
               />
             </div>
           );
         })}
-      </div>
+      </div>}
+      {dataSource === "supabase" && hasMore && <button disabled={loadingMore} onClick={() => void loadMore()} className="mt-5 rounded-xl border px-5 py-3 font-bold">{loadingMore ? "Loading…" : "Load more prices"}</button>}
 
       {filtered.length === 0 && (
         <>

@@ -11,8 +11,11 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.119.2",
     "@tailwindcss/vite": "^4.1.17",
+    "browser-image-compression": "^2.0.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-onesignal": "^3.5.6",
+    "recharts": "^3.11.1",
     "tailwindcss": "^4.1.17"
   },
   "devDependencies": {

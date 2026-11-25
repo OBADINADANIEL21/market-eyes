@@ -3,10 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0a7a42" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="preconnect" href="https://hvfqgeuiqwklpaxpmzwy.supabase.co" crossorigin />
     <title>MARKET EYE — Know The Real Price Anywhere</title>
     <meta name="description" content="Check, compare and report real market prices from Nigeria to the world. No more cheating." />
+    <style>
+      #startup-splash{position:fixed;inset:0;z-index:1000;display:grid;place-content:center;gap:.5rem;text-align:center;background:#f9fafb;color:#0a7a42;font:700 1rem system-ui}
+      #startup-splash strong{font-size:1.75rem}
+    </style>
   </head>
   <body>
+    <div id="startup-splash"><strong>👁 MARKET EYE</strong><span>Loading prices…</span></div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

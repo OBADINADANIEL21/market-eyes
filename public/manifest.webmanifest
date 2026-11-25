@@ -1,0 +1,17 @@
+{
+  "name": "MARKET EYE",
+  "short_name": "Market Eye",
+  "description": "Compare and report community market prices.",
+  "theme_color": "#0a7a42",
+  "background_color": "#f9fafb",
+  "display": "standalone",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "/market-eye.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

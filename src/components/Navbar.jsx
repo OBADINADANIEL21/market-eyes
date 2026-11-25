@@ -1,4 +1,6 @@
 ﻿import { useSettings } from "../context/SettingsContext";
+import { useAuth } from "../context/AuthContext";
+import { supabase } from "../lib/supabase";
 
 /** English / Pidgin segmented toggle */
 function LanguageToggle() {
@@ -6,6 +8,7 @@ function LanguageToggle() {
   const options = [
     { code: "en", label: "EN" },
     { code: "pn", label: "Pidgin" },
+    { code: "yo", label: "Yorùbá" },
   ];
 
   return (
@@ -68,6 +71,7 @@ function MamaToggle() {
  */
 export default function Navbar({ pages, page, setPage }) {
   const { t, mama } = useSettings();
+  const { user } = useAuth();
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md shadow-md">
@@ -114,6 +118,27 @@ export default function Navbar({ pages, page, setPage }) {
         <div className="order-2 md:order-3 flex items-center gap-2">
           <LanguageToggle />
           <MamaToggle />
+          {user ? (
+            <button
+              type="button"
+              onClick={async () => {
+                const { error } = await supabase.auth.signOut();
+                if (error) console.error("Could not sign out:", error);
+                else setPage("home");
+              }}
+              className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 hover:border-brand hover:text-brand"
+            >
+              {mama ? "↪" : "Log out"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setPage("auth")}
+              className="rounded-xl bg-brand px-3 py-2 text-xs font-bold text-white"
+            >
+              {mama ? "👤" : "Log in"}
+            </button>
+          )}
         </div>
       </div>
     </header>

@@ -1,7 +1,11 @@
-﻿import { useSettings } from "../context/SettingsContext";
+import { Suspense, lazy, useState } from "react";
+import { useSettings } from "../context/SettingsContext";
+import { useAuth } from "../context/AuthContext";
+import { supabase } from "../lib/supabase";
 import { currencySymbols, formatPrice, getItemEmoji } from "../data";
-import PriceHistory from "./PriceHistory";
 import TrendBadge from "./TrendBadge";
+
+const PriceHistory = lazy(() => import("./PriceHistory"));
 
 /**
  * One price entry. Used on Home (featured) and Search.
@@ -15,8 +19,12 @@ export default function PriceCard({
   showChart = true,
   loading = false,
   rates,
+  goTo,
 }) {
   const { mama, t } = useSettings();
+  const { user } = useAuth();
+  const [verifyMessage, setVerifyMessage] = useState("");
+  const [verifying, setVerifying] = useState(false);
   const price = formatPrice(entry.price, entry.currency);
   const emoji = getItemEmoji(entry.item);
   const usdPrice = Number(entry.usdPrice ?? entry.price);
@@ -123,9 +131,33 @@ export default function PriceCard({
       <div className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
         Not independently verified. Confirm the price with the market before relying on it.
       </div>
-      {showChart && entry.historySource === "verified" && entry.history?.length >= 7 && (
-        <PriceHistory history={entry.history} currency={entry.currency} />
+      {showChart && entry.historySource === "verified" && entry.history?.length >= 2 && (
+        <Suspense fallback={<div className="mt-4 h-40 animate-pulse rounded-xl bg-gray-100" />}>
+          <PriceHistory history={entry.history} historyDates={entry.historyDates} currency={entry.currency} />
+        </Suspense>
       )}
+      {entry.photoUrl && <a href={entry.photoUrl} target="_blank" rel="noreferrer" className="mt-3 block"><img src={entry.photoUrl} alt={`Price proof for ${entry.item}`} loading="lazy" width="200" height="150" className="h-32 w-full rounded-xl object-cover" /><span className="text-xs text-brand underline">Open photo proof</span></a>}
+      {entry.priceSource === "supabase" && entry.reportCount > 0 && <p className="mt-2 text-xs font-semibold text-gray-600">Trust score: {Math.min(100, Math.round((entry.verifiedCount / entry.reportCount) * 100))}% · {entry.reportCount} approved report{entry.reportCount === 1 ? "" : "s"}</p>}
+      {user && entry.sellerId && entry.sellerId !== user.id && entry.priceSource === "supabase" && <div className="mt-3 flex flex-wrap gap-2">
+        <button disabled={verifying} onClick={async () => {
+          setVerifying(true);
+          setVerifyMessage("");
+          const { error } = await supabase.rpc("verify_price", { p_price_id: entry.id });
+          if (error) {
+            console.error("Could not verify price:", error);
+            setVerifyMessage("Could not verify. You may have already verified this listing.");
+          } else setVerifyMessage("Thanks — your verification was recorded.");
+          setVerifying(false);
+        }} className="rounded-lg border border-brand px-3 py-2 text-sm font-bold text-brand">{verifying ? "Saving…" : "Verify price"}</button>
+        {goTo && <button onClick={async () => {
+          const { data, error } = await supabase.rpc("get_or_create_conversation", { p_other_user: entry.sellerId });
+          if (error) {
+            console.error("Could not start seller chat:", error);
+            setVerifyMessage("Could not open seller chat. Please try again.");
+          } else goTo("chat", { chatId: data });
+        }} className="rounded-lg bg-brand px-3 py-2 text-sm font-bold text-white">Message seller</button>}
+        {verifyMessage && <span role="status" className="self-center text-xs text-gray-600">{verifyMessage}</span>}
+      </div>}
     </article>
   );
 }

@@ -4,6 +4,8 @@ import { useSettings } from "../context/SettingsContext";
 import { supabase, supabaseConfigError } from "../lib/supabase";
 import useLocalStorage from "../hooks/useLocalStorage";
 import EmptyState from "./EmptyState";
+import { fileAsDataUrl, uploadImage } from "../lib/uploads";
+import { queueItem } from "../lib/offlineQueue";
 
 // Same key as the original app, so reports saved before the upgrade still show up.
 const STORAGE_KEY = "market-eye-reports";
@@ -42,6 +44,7 @@ const reportItems = [
 export default function Report() {
   const { t, mama } = useSettings();
   const [form, setForm] = useState(emptyForm);
+  const [proofFile, setProofFile] = useState(null);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -85,7 +88,15 @@ export default function Report() {
 
     try {
       if (!supabase) throw new Error(supabaseConfigError);
-      const { error } = await supabase.from("reports").insert({
+      let photo_url = null;
+      let photoDataUrl;
+      if (proofFile && navigator.onLine) {
+        photo_url = await uploadImage(proofFile, "price-proofs", `reports/${crypto.randomUUID()}.jpg`);
+      } else if (proofFile) {
+        photoDataUrl = await fileAsDataUrl(proofFile);
+      }
+
+      const reportRow = {
         name: newReport.name,
         country: newReport.country,
         city: newReport.city,
@@ -94,17 +105,24 @@ export default function Report() {
         unit: newReport.unit,
         currency: newReport.currency,
         price: newReport.price,
-      });
-      if (error) throw error;
+        photo_url,
+      };
+      if (!navigator.onLine) {
+        await queueItem("report", { ...reportRow, ...(photoDataUrl ? { photoDataUrl } : {}) });
+      } else {
+        const { error } = await supabase.from("reports").insert(reportRow);
+        if (error) throw error;
+      }
 
       setReports((prev) => [newReport, ...prev]);
       setForm(emptyForm);
+      setProofFile(null);
       setSubmitted(true);
       clearTimeout(timer.current);
       timer.current = setTimeout(() => setSubmitted(false), 5000);
     } catch (error) {
       console.error("Could not save report to Supabase:", error);
-      setSubmitError(error.message || t("report.saveError"));
+      setSubmitError(t("report.saveError"));
     } finally {
       setSubmitting(false);
     }
@@ -122,7 +140,7 @@ export default function Report() {
       <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-2">{t("report.title")}</h1>
       {!mama && <p className="text-gray-500 mb-8">{t("report.subtitle")}</p>}
       <div className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-sm text-amber-950">
-        {t("report.localOnly")}
+        Reports are community-submitted and should be checked at the market. Reports made offline will sync when your connection returns.
       </div>
 
       {submitError && (
@@ -164,6 +182,17 @@ export default function Report() {
             />
           </div>
         ))}
+        <label className="block text-sm font-semibold text-gray-700 md:col-span-2">
+          Photo proof (optional)
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={(event) => setProofFile(event.target.files?.[0] ?? null)}
+            className={`${inputCls} mt-1`}
+          />
+          {proofFile && <span className="mt-1 block text-xs text-gray-500">{proofFile.name}</span>}
+        </label>
 
         {/* Autocomplete suggestions built from the existing price data */}
         {Object.entries(suggestions).map(([id, values]) => (

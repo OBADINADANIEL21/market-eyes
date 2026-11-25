@@ -4,8 +4,10 @@ import { supabase, supabaseConfigError } from "../lib/supabase";
 
 const RATE_URL = "https://open.er-api.com/v6/latest/USD";
 const COMMODITY_URL = "https://commodities-api.com/api/latest";
-const REFRESH_MS = 30_000;
+const REFRESH_MS = 5 * 60_000;
 const SIMULATION_MS = 15_000;
+const CACHE_KEY = "market-eye-price-cache";
+const PAGE_SIZE = 20;
 
 const fallbackCommodityPrices = {
   Rice: 0.85,
@@ -149,7 +151,7 @@ function makePrices(rates, commodityRates, simulation) {
   return [...makeLagosPrices(simulation, rates), ...updatedCatalog, ...globalBenchmarks];
 }
 
-function makeSupabasePrices(rows, rates) {
+function makeSupabasePrices(rows, rates, histories = []) {
   return rows.flatMap((row, index) => {
     const item = row.item ?? row.item_name ?? row.product;
     const city = row.city ?? row.location;
@@ -172,6 +174,11 @@ function makeSupabasePrices(rows, rates) {
     const usdPrice = currency === "USD" ? price : Number.isFinite(rate) && rate > 0 ? price / rate : null;
     if (usdPrice === null) return [];
 
+    const history = histories
+      .filter((entry) => entry.price_id === row.id)
+      .map((entry) => ({ price: Number(entry.price), date: entry.captured_at }))
+      .filter((entry) => Number.isFinite(entry.price) && entry.price > 0)
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
     return [{
       id: String(row.id ?? `supabase-price-${index}`),
       item,
@@ -183,21 +190,51 @@ function makeSupabasePrices(rows, rates) {
       currency,
       trend: "stable",
       verifiedCount: Number(row.verified_count ?? row.report_count ?? 0),
+      reportCount: Number(row.report_count ?? 0),
+      sellerId: row.seller_id ?? null,
+      photoUrl: row.photo_url ?? null,
       verifiedToday: 0,
       usdPrice,
       priceSource: "supabase",
       createdAt: row.created_at ?? null,
+      history: history.map((entry) => entry.price),
+      historyDates: history.map((entry) => entry.date),
+      historySource: history.length >= 2 ? "verified" : null,
       live: false,
     }];
   });
 }
 
-async function fetchSupabasePrices() {
+async function fetchSupabasePrices(from = 0) {
   if (!supabase) return { rows: null, error: supabaseConfigError };
+  if (!navigator.onLine) return { rows: null, error: null };
 
-  const { data, error } = await supabase.from("prices").select("*").limit(500);
+  const { data, error } = await supabase
+    .from("prices")
+    .select("id,item,country,city,market,unit,price,currency,created_at,seller_id,photo_url,report_count,verified_count")
+    .order("created_at", { ascending: false })
+    .range(from, from + PAGE_SIZE - 1);
   if (error) return { rows: null, error: error.message };
-  return { rows: data ?? [], error: null };
+  const rows = data ?? [];
+  if (!rows.length) return { rows, history: [], error: null };
+  const { data: history, error: historyError } = await supabase
+    .from("price_history")
+    .select("price_id,price,captured_at")
+    .in("price_id", rows.map((row) => row.id))
+    .gte("captured_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+    .order("captured_at", { ascending: true });
+  if (historyError) console.warn("Price history is unavailable until the database migration is applied:", historyError);
+  return { rows, history: history ?? [], error: null };
+}
+
+function getCachedPrices() {
+  try {
+    const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+    if (!Array.isArray(cache?.rows)) return null;
+    return cache;
+  } catch {
+    return null;
+  }
 }
 
 async function fetchRates(signal) {
@@ -257,13 +294,17 @@ function randomStep() {
 }
 
 export function useLivePrices() {
-  const [rates, setRates] = useState(fallbackCatalogUsdRates);
+  const cachedPrices = useMemo(() => getCachedPrices(), []);
+  const [rates, setRates] = useState(cachedPrices?.rates ?? fallbackCatalogUsdRates);
   const [commodityRates, setCommodityRates] = useState(fallbackCommodityPrices);
   const [simulation, setSimulation] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState(null);
+  const [loading, setLoading] = useState(!cachedPrices?.rows?.length);
+  const [lastUpdated, setLastUpdated] = useState(cachedPrices?.savedAt ?? null);
   const [now, setNow] = useState(Date.now());
-  const [databaseRows, setDatabaseRows] = useState(null);
+  const [databaseRows, setDatabaseRows] = useState(cachedPrices?.rows ?? null);
+  const [historyRows, setHistoryRows] = useState(cachedPrices?.history ?? []);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState((cachedPrices?.rows?.length ?? 0) === PAGE_SIZE);
   const [dataError, setDataError] = useState(supabaseConfigError);
 
   useEffect(() => {
@@ -283,7 +324,7 @@ export function useLivePrices() {
             if (error.name !== "AbortError") console.error("Could not refresh commodity prices:", error);
             return null;
           }),
-          fetchSupabasePrices().catch((error) => {
+          fetchSupabasePrices(0).catch((error) => {
             console.error("Could not load Supabase prices:", error);
             return { rows: null, error: error.message };
           }),
@@ -296,9 +337,21 @@ export function useLivePrices() {
         if (nextCommodityRates) setCommodityRates(nextCommodityRates);
         if (priceResult.rows?.length) {
           setDatabaseRows(priceResult.rows);
+          setHistoryRows(priceResult.history ?? []);
+          setHasMore(priceResult.rows.length === PAGE_SIZE);
           setDataError(null);
+          try {
+            localStorage.setItem(CACHE_KEY, JSON.stringify({
+              rows: priceResult.rows,
+              history: priceResult.history ?? [],
+              rates: nextRates ?? rates,
+              savedAt: Date.now(),
+            }));
+          } catch (error) {
+            console.warn("Could not cache price listings:", error);
+          }
         } else {
-          setDatabaseRows(null);
+          if (priceResult.rows && priceResult.rows.length === 0) setDatabaseRows(null);
           setDataError(priceResult.error);
         }
       } catch (error) {
@@ -345,9 +398,32 @@ export function useLivePrices() {
     };
   }, []);
 
+  const loadMore = async () => {
+    if (loadingMore || !hasMore || !supabase || !navigator.onLine) return;
+    setLoadingMore(true);
+    try {
+      const result = await fetchSupabasePrices(databaseRows?.length ?? 0);
+      if (result.error) throw new Error(result.error);
+      const nextRows = [...(databaseRows ?? []), ...(result.rows ?? [])];
+      const nextHistory = [...historyRows, ...(result.history ?? [])];
+      setDatabaseRows(nextRows);
+      setHistoryRows(nextHistory);
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ rows: nextRows, history: nextHistory, rates, savedAt: Date.now() }));
+      } catch (error) {
+        console.warn("Could not cache additional price listings:", error);
+      }
+      setHasMore((result.rows?.length ?? 0) === PAGE_SIZE);
+    } catch (error) {
+      console.error("Could not load more price listings:", error);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   const supabasePrices = useMemo(
-    () => databaseRows ? makeSupabasePrices(databaseRows, rates) : [],
-    [databaseRows, rates]
+    () => databaseRows ? makeSupabasePrices(databaseRows, rates, historyRows) : [],
+    [databaseRows, historyRows, rates]
   );
   const prices = useMemo(
     () => supabasePrices.length
@@ -366,5 +442,17 @@ export function useLivePrices() {
     [prices]
   );
 
-  return { prices, rates, loading, lastUpdated, trend, now, dataSource, dataError: visibleDataError };
+  return {
+    prices,
+    rates,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    lastUpdated,
+    trend,
+    now,
+    dataSource,
+    dataError: visibleDataError,
+  };
 }

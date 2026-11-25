@@ -13,13 +13,14 @@ const steps = [
 export default function Home({ goTo }) {
   const { t, mama, lang } = useSettings();
   const { prices, rates, loading, lastUpdated, now, dataSource, dataError } = useLivePrices();
-  const featured = [
+  const featuredCandidates = [
     ["Rice (50kg)", "Lagos"],
     ["Tomatoes (1kg)", "Lagos"],
     ["Garri (1kg)", "Lagos"],
   ]
     .map(([item, city]) => prices.find((p) => p.item === item && p.city === city))
     .filter(Boolean);
+  const featured = featuredCandidates.length ? featuredCandidates : prices.slice(0, 3);
   const countryCount = new Set(
     prices.filter((entry) => entry.country !== "Global").map((entry) => entry.country)
   ).size;
@@ -99,7 +100,7 @@ export default function Home({ goTo }) {
           )}
         </div>
 
-        <div className={`grid gap-6 ${mama ? "grid-cols-1" : "md:grid-cols-3"}`}>
+        {featured.length > 0 ? <div className={`grid gap-6 ${mama ? "grid-cols-1" : "md:grid-cols-3"}`}>
           {featured.map((entry, i) => (
             <div key={entry.id} className="card-enter" style={{ animationDelay: `${i * 100}ms` }}>
               <PriceCard
@@ -109,10 +110,11 @@ export default function Home({ goTo }) {
                 lastUpdated={lastUpdated}
                 now={now}
                 rates={rates}
+                goTo={goTo}
               />
             </div>
           ))}
-        </div>
+        </div> : loading ? <div className="grid gap-6 md:grid-cols-3">{[0, 1, 2].map((item) => <div key={item} className="h-52 animate-pulse rounded-2xl bg-gray-200" />)}</div> : <p className="rounded-2xl bg-white p-5 text-gray-600">No price listings are available yet. Check back soon or report a local price.</p>}
       </section>
 
       {/* ===== HOW IT WORKS ===== */}
@@ -140,6 +142,9 @@ export default function Home({ goTo }) {
 
       {/* ===== LEADERBOARD ===== */}
       <Leaderboard prices={prices} dataSource={dataSource} />
+      <div className="pb-6 text-center">
+        <button onClick={() => goTo("sellers")} className="rounded-xl border border-brand px-5 py-3 font-bold text-brand">Browse top sellers</button>
+      </div>
 
     </div>
   );
