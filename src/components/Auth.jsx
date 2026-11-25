@@ -6,7 +6,7 @@ const inputClass = "w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-
 
 function getAuthErrorMessage(error, mode, t) {
   const detail = typeof error?.message === "string" ? error.message : "";
-  const errorText = `${error?.code ?? ""} ${detail}`.toLowerCase();
+  const errorText = `${error?.code ?? ""} ${error?.status ?? ""} ${detail}`.toLowerCase();
 
   if (errorText.includes("already registered") || errorText.includes("user_already_exists")) {
     return t("auth.error.userExists");
@@ -27,9 +27,20 @@ function getAuthErrorMessage(error, mode, t) {
   if (
     errorText.includes("rate limit") ||
     errorText.includes("rate_limit") ||
-    errorText.includes("too many requests")
+    errorText.includes("too many requests") ||
+    errorText.includes("too many attempts") ||
+    errorText.includes("too_many_attempts") ||
+    error?.status === 429
   ) {
     return t("auth.error.rateLimit");
+  }
+  if (
+    errorText.includes("failed to fetch") ||
+    errorText.includes("fetch failed") ||
+    errorText.includes("networkerror") ||
+    errorText.includes("network error")
+  ) {
+    return t("auth.error.network");
   }
   if (errorText.includes("database error saving new user")) {
     return t("auth.error.profileSetup");
