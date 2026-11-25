@@ -9,7 +9,7 @@ createRoot(document.getElementById("root")).render(
 );
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js", { scope: "/" })
+    navigator.serviceWorker.register("/OneSignalSDKWorker.js", { scope: "/" })
       .catch((error) => console.error("Could not register the offline app worker:", error));
   });
 }

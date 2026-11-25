@@ -13,7 +13,7 @@ async function initializeOneSignal(appId) {
     oneSignalInitPromise = OneSignal.init({
       appId,
       allowLocalhostAsSecureOrigin: true,
-      serviceWorkerPath: "/sw.js",
+      serviceWorkerPath: "/OneSignalSDKWorker.js",
       serviceWorkerParam: { scope: "/" },
     }).catch((error) => {
       oneSignalInitPromise = null;
