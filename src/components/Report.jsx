@@ -38,6 +38,45 @@ const reportItems = [
   "Plantain (1 bunch)",
 ];
 
+function getReportErrorMessage(error, t) {
+  const detail = typeof error?.message === "string" ? error.message : "";
+  const errorText = `${error?.code ?? ""} ${error?.status ?? ""} ${detail}`.toLowerCase();
+
+  if (
+    error?.status === 429 ||
+    errorText.includes("rate limit") ||
+    errorText.includes("too many requests")
+  ) {
+    return t("report.error.rateLimit");
+  }
+  if (
+    errorText.includes("failed to fetch") ||
+    errorText.includes("fetch failed") ||
+    errorText.includes("networkerror") ||
+    errorText.includes("network error")
+  ) {
+    return t("report.error.network");
+  }
+  if (
+    errorText.includes("42501") ||
+    errorText.includes("permission denied") ||
+    errorText.includes("row-level security")
+  ) {
+    return t("report.error.permissions");
+  }
+  if (
+    errorText.includes("pgrst204") ||
+    errorText.includes("pgrst205") ||
+    errorText.includes("schema cache") ||
+    (errorText.includes("column") && errorText.includes("does not exist"))
+  ) {
+    return t("report.error.schema");
+  }
+
+  const message = detail || t("report.saveError");
+  return t("report.error.generic", { detail: message.slice(0, 240) });
+}
+
 export default function Report() {
   const { t, mama } = useSettings();
   const [form, setForm] = useState(emptyForm);
@@ -118,7 +157,7 @@ export default function Report() {
       timer.current = setTimeout(() => setSubmitted(false), 5000);
     } catch (error) {
       console.error("Could not save report to Supabase:", error);
-      setSubmitError(t("report.saveError"));
+      setSubmitError(getReportErrorMessage(error, t));
     } finally {
       setSubmitting(false);
     }
@@ -141,7 +180,7 @@ export default function Report() {
 
       {submitError && (
         <div role="alert" className="mb-6 rounded-2xl border border-red-300 bg-red-50 px-5 py-4 text-sm text-red-800">
-          {t("report.saveError")}
+          {submitError}
         </div>
       )}
 
