@@ -5,6 +5,20 @@ import { fileAsDataUrl } from "../lib/uploads";
 import { queueItem } from "../lib/offlineQueue";
 import { readLocalCache, writeLocalCache } from "../lib/localCache";
 
+async function getPushErrorDetail(error) {
+  const response = error?.context;
+  if (response instanceof Response) {
+    try {
+      const payload = await response.clone().json();
+      if (typeof payload?.error === "string") return `HTTP ${response.status}: ${payload.error}`;
+    } catch {
+      return `HTTP ${response.status}`;
+    }
+    return `HTTP ${response.status}`;
+  }
+  return error instanceof Error ? error.message : "Unknown error";
+}
+
 export default function Chat({ chatId, goTo }) {
   const { user, profile } = useAuth();
   const [messages, setMessages] = useState([]);
@@ -200,7 +214,8 @@ export default function Chat({ chatId, goTo }) {
     });
     if (pushError) {
       console.warn("Message saved; notification could not be sent:", pushError);
-      setNotice("Message sent, but its push alert failed. The recipient can still see it in chat.");
+      const detail = await getPushErrorDetail(pushError);
+      setNotice(`Message sent, but its push alert failed (${detail}). The recipient can still see it in chat.`);
     } else if (pushResult?.skipped) {
       setNotice("Message sent; no push alert was sent because notifications are off, Do Not Disturb applies, or the recipient was active.");
     }
@@ -303,7 +318,8 @@ export default function Chat({ chatId, goTo }) {
       });
       if (pushError) {
         console.warn("Call started; push notification could not be sent:", pushError);
-        setNotice("Call started, but its push alert failed. The recipient may not see it.");
+        const detail = await getPushErrorDetail(pushError);
+        setNotice(`Call started, but its push alert failed (${detail}). The recipient may not see it.`);
       } else if (pushResult?.skipped) {
         setNotice("Call started, but no push alert was sent because notifications are off, Do Not Disturb applies, or the recipient was active.");
       }

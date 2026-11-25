@@ -45,8 +45,13 @@ Deno.serve(async (request: Request) => {
       .select("id,sender_id,receiver_id,message,message_type,conversation_id")
       .eq("id", payload.messageId)
       .maybeSingle();
-    if (error || !message || message.sender_id !== userData.user.id) {
-      return Response.json({ error: "Message not found." }, { status: 404, headers: corsHeaders });
+    if (error) {
+      console.error("Could not load message for push:", error.message);
+      return Response.json({ error: "Could not verify the message." }, { status: 500, headers: corsHeaders });
+    }
+    if (!message) return Response.json({ error: "Message not found." }, { status: 404, headers: corsHeaders });
+    if (message.sender_id !== userData.user.id) {
+      return Response.json({ error: "Only the message sender can request its notification." }, { status: 403, headers: corsHeaders });
     }
     const { data: sender } = await admin.from("profiles").select("name").eq("id", message.sender_id).maybeSingle();
     receiverId = message.receiver_id;
@@ -59,8 +64,13 @@ Deno.serve(async (request: Request) => {
       .select("id,caller_id,receiver_id,conversation_id,call_type,status")
       .eq("id", payload.callId)
       .maybeSingle();
-    if (error || !call || call.caller_id !== userData.user.id || call.status !== "ringing") {
-      return Response.json({ error: "Call not found." }, { status: 404, headers: corsHeaders });
+    if (error) {
+      console.error("Could not load call for push:", error.message);
+      return Response.json({ error: "Could not verify the call." }, { status: 500, headers: corsHeaders });
+    }
+    if (!call) return Response.json({ error: "Call not found." }, { status: 404, headers: corsHeaders });
+    if (call.caller_id !== userData.user.id || call.status !== "ringing") {
+      return Response.json({ error: "Only the caller can request a notification for a ringing call." }, { status: 403, headers: corsHeaders });
     }
     const { data: caller } = await admin.from("profiles").select("name").eq("id", call.caller_id).maybeSingle();
     receiverId = call.receiver_id;
@@ -77,7 +87,11 @@ Deno.serve(async (request: Request) => {
     .select("last_seen,notify_message,notify_call,do_not_disturb,timezone")
     .eq("id", receiverId)
     .maybeSingle();
-  if (profileError || !recipient) return Response.json({ error: "Recipient unavailable." }, { status: 404, headers: corsHeaders });
+  if (profileError) {
+    console.error("Could not load push recipient profile:", profileError.message);
+    return Response.json({ error: "Could not verify the notification recipient." }, { status: 500, headers: corsHeaders });
+  }
+  if (!recipient) return Response.json({ error: "Recipient unavailable." }, { status: 404, headers: corsHeaders });
   const enabled = payload.type === "message" ? recipient.notify_message : recipient.notify_call;
   const recentlySeen = recipient.last_seen && Date.now() - new Date(recipient.last_seen).getTime() < 120_000;
   let localHour = new Date().getUTCHours();
