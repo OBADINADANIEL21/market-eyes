@@ -38,10 +38,7 @@ export default function Compare() {
   const { list, cheapest, priciest } = rows;
   const gap = cheapest ? Math.round(((priciest - cheapest) / cheapest) * 100) : 0;
 
-  const rateNote = Object.entries(rates)
-    .filter(([cur]) => cur !== "USD")
-    .map(([cur, rate]) => `${currencySymbols[cur]} ${rate.toLocaleString("en-US")}`)
-    .join(" · ");
+  const rateNote = `${currencySymbols.NGN} ${(rates.NGN ?? 1500).toLocaleString("en-US")}`;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
@@ -100,7 +97,7 @@ export default function Compare() {
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h3 className="font-extrabold text-lg text-gray-900">
-                        <span aria-hidden="true">{cityFlags[city] ?? "🌍"}</span> {city}
+                        <span aria-hidden="true">{cityFlags[city] ?? "🇳🇬"}</span> {city}
                       </h3>
                       {!mama && (
                         <p className="text-sm text-gray-500">

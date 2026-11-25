@@ -10,8 +10,8 @@ export default function Pending() {
 
   const load = useCallback(async () => {
     const [postResult, reportResult] = await Promise.all([
-      supabase.from("seller_posts").select("id,seller_id,item,price,unit,market,city,country,currency,photo_url,created_at").eq("status", "pending").order("created_at", { ascending: true }).limit(100),
-      supabase.from("reports").select("id,name,item,price,unit,market,city,country,currency,photo_url,created_at").eq("status", "pending").order("created_at", { ascending: true }).limit(100),
+      supabase.from("seller_posts").select("id,seller_id,item,price,unit,market,city,country,currency,photo_url,created_at").eq("country", "Nigeria").eq("status", "pending").order("created_at", { ascending: true }).limit(100),
+      supabase.from("reports").select("id,name,item,price,unit,market,city,country,currency,photo_url,created_at").eq("country", "Nigeria").eq("status", "pending").order("created_at", { ascending: true }).limit(100),
     ]);
     const error = postResult.error ?? reportResult.error;
     if (error) {

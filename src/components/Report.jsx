@@ -24,17 +24,14 @@ const emptyForm = {
 // Form fields: `list` links an input to a <datalist> of suggestions.
 const fields = [
   { name: "name", labelKey: "report.name", placeholder: "e.g. Adaeze Okafor" },
-  { name: "country", labelKey: "report.country", placeholder: "e.g. Nigeria", list: "me-countries" },
   { name: "city", labelKey: "report.city", placeholder: "e.g. Lagos", list: "me-cities" },
   { name: "market", labelKey: "report.market", placeholder: "e.g. Mile 12 Market", list: "me-markets" },
   { name: "item", labelKey: "report.item", placeholder: "e.g. Beans", list: "me-items" },
   { name: "unit", labelKey: "report.unit", placeholder: "e.g. 1kg, 50kg bag, bunch" },
-  { name: "currency", labelKey: "report.currency", placeholder: "e.g. NGN", list: "me-currencies" },
   { name: "price", labelKey: "report.price", placeholder: "e.g. 78000", type: "number" },
 ];
 
 const unique = (key) => [...new Set(prices.map((p) => p[key]))];
-const currencies = ["NGN", "KES", "INR", "PHP", "GHS", "ZAR", "GBP", "CAD", "AUD", "BRL", "USD"];
 const reportItems = [
   ...unique("item"),
   "Beans (1kg)",
@@ -51,15 +48,14 @@ export default function Report() {
   // Saved on this device and restored after a reload
   const [reports, setReports] = useLocalStorage(STORAGE_KEY, []);
   const timer = useRef(null);
+  const nigeriaReports = reports.filter((report) => (report.country ?? "Nigeria") === "Nigeria");
 
   // Suggestions for the form inputs
   const suggestions = useMemo(
     () => ({
-      "me-countries": unique("country"),
       "me-cities": unique("city"),
       "me-markets": unique("market"),
       "me-items": reportItems,
-      "me-currencies": currencies,
     }),
     []
   );
@@ -76,12 +72,12 @@ export default function Report() {
     const newReport = {
       id: Date.now(),
       name: form.name.trim(),
-      country: form.country.trim(),
+      country: "Nigeria",
       city: form.city.trim(),
       market: form.market.trim(),
       item: form.item.trim(),
       unit: form.unit.trim(),
-      currency: form.currency.trim().toUpperCase(),
+      currency: "NGN",
       price: Number(form.price),
       date: new Date().toLocaleDateString(),
     };
@@ -162,6 +158,9 @@ export default function Report() {
         onSubmit={handleSubmit}
         className="bg-white rounded-2xl shadow-lg p-6 md:p-8 grid md:grid-cols-2 gap-5 mb-10"
       >
+        <div className="md:col-span-2 rounded-xl bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">
+          {t("report.coverage")}
+        </div>
         {fields.map(({ name, labelKey, placeholder, list, type }) => (
           <div key={name}>
             <label htmlFor={`f-${name}`} className="block text-sm font-semibold text-gray-700 mb-1">
@@ -212,7 +211,7 @@ export default function Report() {
         </button>
       </form>
 
-      {reports.length === 0 ? (
+      {nigeriaReports.length === 0 ? (
         <EmptyState
           icon="📝"
           title={t("report.emptyTitle")}
@@ -223,7 +222,7 @@ export default function Report() {
           <p className="mb-4 text-sm text-gray-500">{t("report.localHistory")}</p>
           <div className="flex items-center justify-between gap-3 mb-4">
             <h2 className="text-2xl font-extrabold text-gray-900">
-              {t("report.community", { n: reports.length })}
+              {t("report.community", { n: nigeriaReports.length })}
             </h2>
             <button
               onClick={clearAll}
@@ -234,7 +233,7 @@ export default function Report() {
           </div>
 
           <div className="grid md:grid-cols-2 gap-4">
-            {reports.map((r, i) => (
+            {nigeriaReports.map((r, i) => (
               // Older saved reports have no id, so fall back to the index
               <div
                 key={r.id ?? i}

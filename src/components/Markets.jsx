@@ -118,7 +118,7 @@ export default function Markets() {
             ["target_price", "Target price (NGN)", "", "number"],
             ["contact", "Phone or email", "Where should we contact you?", "text"],
           ].map(([name, label, placeholder, type]) => <label key={name} className="block text-sm font-semibold">{label}<input required className={inputClass} type={type} min={type === "number" ? "0.01" : undefined} value={alertForm[name]} placeholder={placeholder} onChange={(event) => setAlertForm((prev) => ({ ...prev, [name]: event.target.value }))} /></label>)}
-          <label className="block text-sm font-semibold">Currency<select className={inputClass} value={alertForm.currency} onChange={(event) => setAlertForm((prev) => ({ ...prev, currency: event.target.value }))}>{["NGN","KES","INR","PHP","GHS","ZAR","GBP","CAD","AUD","BRL","USD"].map((currency) => <option key={currency}>{currency}</option>)}</select></label>
+          <p className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">Nigeria · NGN (Naira)</p>
           <p className="text-xs text-gray-500">Alerts are saved to your account. Delivery needs push or email notification setup.</p>
           <div className="flex gap-2"><button type="button" onClick={() => setAlertOpen(false)} className="flex-1 rounded-xl border px-4 py-3 font-semibold">Cancel</button><button disabled={saving} className="flex-1 rounded-xl bg-brand px-4 py-3 font-bold text-white">{saving ? "Saving…" : "Save alert"}</button></div>
         </form>

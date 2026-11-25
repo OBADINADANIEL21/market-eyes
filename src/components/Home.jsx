@@ -21,9 +21,7 @@ export default function Home({ goTo }) {
     .map(([item, city]) => prices.find((p) => p.item === item && p.city === city))
     .filter(Boolean);
   const featured = featuredCandidates.length ? featuredCandidates : prices.slice(0, 3);
-  const countryCount = new Set(
-    prices.filter((entry) => entry.country !== "Global").map((entry) => entry.country)
-  ).size;
+  const countryCount = new Set(prices.map((entry) => entry.country)).size;
   const marketCount = new Set(prices.map((entry) => entry.market)).size;
 
   return (
@@ -33,7 +31,7 @@ export default function Home({ goTo }) {
         <div className="max-w-7xl mx-auto px-4 py-16 md:py-28 text-center">
           {!mama && (
             <span className="inline-block bg-white/15 text-emerald-100 text-xs md:text-sm font-semibold px-4 py-1.5 rounded-full mb-6 tracking-wide">
-              {t("hero.badge", { n: countryCount })}
+              {t("hero.badge")}
             </span>
           )}
           {/* whitespace-pre-line turns the \n in the translation into a line break */}

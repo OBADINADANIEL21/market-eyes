@@ -2,7 +2,7 @@
 import { translations } from "../i18n";
 
 /**
- * Global UI settings: Mama Mode + language (English / Pidgin).
+ * Global UI settings: Mama Mode and the selected interface language.
  * Persisted in localStorage so they survive a page reload.
  */
 const STORAGE_KEY = "market-eye-settings";
@@ -11,7 +11,7 @@ const SettingsContext = createContext(null);
 const loadSettings = () => {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    return { mama: Boolean(saved.mama), lang: ["pn", "yo"].includes(saved.lang) ? saved.lang : "en" };
+    return { mama: Boolean(saved.mama), lang: ["pn", "yo", "ha", "ig"].includes(saved.lang) ? saved.lang : "en" };
   } catch {
     return { mama: false, lang: "en" };
   }

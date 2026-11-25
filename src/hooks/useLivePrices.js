@@ -87,8 +87,9 @@ function getApiUsdPrice(item, commodityRates) {
 function makePrices(rates, commodityRates, simulation) {
   const nonLagosCatalog = catalogPrices.filter(
     (entry) =>
-      entry.city !== "Lagos" ||
-      !Object.prototype.hasOwnProperty.call(marketBases, entry.item)
+      entry.country === "Nigeria" &&
+      (entry.city !== "Lagos" ||
+        !Object.prototype.hasOwnProperty.call(marketBases, entry.item))
   );
 
   const updatedCatalog = nonLagosCatalog.map((entry) => {
@@ -124,31 +125,7 @@ function makePrices(rates, commodityRates, simulation) {
     };
   });
 
-  const globalBenchmarks = ["Wheat", "Maize"].map((item) => {
-    const usdPrice = commodityRates[item] ?? fallbackCommodityPrices[item];
-    const history = Array.from({ length: 7 }, (_, index) =>
-      index === 6 ? usdPrice : Number((usdPrice * (0.96 + index * 0.008)).toFixed(2))
-    );
-    return {
-      id: `global-${item.toLowerCase()}`,
-      item,
-      country: "Global",
-      city: "Global",
-      market: "Global commodity benchmark (per kg)",
-      price: usdPrice,
-      currency: "USD",
-      trend: "stable",
-      verifiedCount: 0,
-      verifiedToday: 0,
-      usdPrice,
-      priceSource:
-        commodityRates[item] === fallbackCommodityPrices[item] ? "estimate" : "commodity-api",
-      live: true,
-      history,
-    };
-  });
-
-  return [...makeLagosPrices(simulation, rates), ...updatedCatalog, ...globalBenchmarks];
+  return [...makeLagosPrices(simulation, rates), ...updatedCatalog];
 }
 
 function makeSupabasePrices(rows, rates, histories = []) {
@@ -161,6 +138,7 @@ function makeSupabasePrices(rows, rates, histories = []) {
     const price = Number(row.price ?? row.price_amount);
 
     if (
+      country !== "Nigeria" ||
       typeof item !== "string" ||
       typeof city !== "string" ||
       typeof market !== "string" ||
@@ -212,6 +190,7 @@ async function fetchSupabasePrices(from = 0) {
   const { data, error } = await supabase
     .from("prices")
     .select("id,item,country,city,market,unit,price,currency,created_at,seller_id,photo_url,report_count,verified_count")
+    .eq("country", "Nigeria")
     .order("created_at", { ascending: false })
     .range(from, from + PAGE_SIZE - 1);
   if (error) return { rows: null, error: error.message };

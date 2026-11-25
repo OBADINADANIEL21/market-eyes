@@ -11,7 +11,6 @@ const selectCls =
 export default function Search({ goTo }) {
   const { t, mama, lang } = useSettings();
   const { prices, rates, loading, loadingMore, hasMore, loadMore, lastUpdated, now, dataSource, dataError } = useLivePrices();
-  const [country, setCountry] = useState("");
   const [city, setCity] = useState("");
   const [query, setQuery] = useState("");
   const [listingMode, setListingMode] = useState("all");
@@ -23,11 +22,7 @@ export default function Search({ goTo }) {
     return () => recognitionRef.current?.abort();
   }, []);
 
-  const countries = useMemo(() => [...new Set(prices.map((p) => p.country))], [prices]);
-  const cities = useMemo(
-    () => [...new Set(prices.filter((p) => !country || p.country === country).map((p) => p.city))],
-    [country, prices]
-  );
+  const cities = useMemo(() => [...new Set(prices.map((p) => p.city))], [prices]);
 
   const startVoiceSearch = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -96,13 +91,12 @@ export default function Search({ goTo }) {
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
     return prices.filter((p) => {
-      const matchCountry = !country || p.country === country;
       const matchCity = !city || p.city === city;
       const matchQuery = !q || p.item.toLowerCase().includes(q) || p.market.toLowerCase().includes(q);
       const matchMarket = listingMode !== "market" || !marketFilter || p.market === marketFilter;
-      return matchCountry && matchCity && matchQuery && matchMarket;
+      return matchCity && matchQuery && matchMarket;
     });
-  }, [country, city, query, listingMode, marketFilter, prices]);
+  }, [city, query, listingMode, marketFilter, prices]);
 
   // Average per item+city — a price >20% above it gets a cheat alert
   const averages = useMemo(() => {
@@ -118,9 +112,8 @@ export default function Search({ goTo }) {
     return avg;
   }, [prices]);
 
-  const hasFilters = Boolean(country || city || query || marketFilter);
+  const hasFilters = Boolean(city || query || marketFilter);
   const clearFilters = () => {
-    setCountry("");
     setCity("");
     setQuery("");
     setMarketFilter("");
@@ -150,19 +143,7 @@ export default function Search({ goTo }) {
         </div>}
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1">{t("search.country")}</label>
-          <select
-            value={country}
-            onChange={(e) => {
-              setCountry(e.target.value);
-              setCity("");
-            }}
-            className={selectCls}
-          >
-            <option value="">{t("search.allCountries")}</option>
-            {countries.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
+          <div className={`${selectCls} text-gray-700`}>🇳🇬 {t("search.nigeria")}</div>
         </div>
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1">{t("search.city")}</label>

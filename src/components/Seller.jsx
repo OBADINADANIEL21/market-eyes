@@ -19,7 +19,7 @@ export default function Seller({ goTo }) {
 
   const load = useCallback(async () => {
     const [{ data: postRows, error: postError }, { data: seller, error: sellerError }] = await Promise.all([
-      supabase.from("seller_posts").select("id,item,price,unit,market,city,country,currency,status,created_at,photo_url").eq("seller_id", user.id).order("created_at", { ascending: false }).limit(10),
+      supabase.from("seller_posts").select("id,item,price,unit,market,city,country,currency,status,created_at,photo_url").eq("seller_id", user.id).eq("country", "Nigeria").order("created_at", { ascending: false }).limit(10),
       supabase.from("seller_profiles").select("shop_name,trust_score,total_posts,market,verified").eq("id", user.id).maybeSingle(),
     ]);
     if (postError || sellerError) {
@@ -55,8 +55,8 @@ export default function Seller({ goTo }) {
         unit: form.unit.trim(),
         market: form.market.trim(),
         city: form.city.trim(),
-        country: form.country.trim(),
-        currency: form.currency,
+        country: "Nigeria",
+        currency: "NGN",
         photo_url,
       };
       if (!navigator.onLine) {
@@ -89,9 +89,8 @@ export default function Seller({ goTo }) {
         ["unit", "Unit / pack size", "e.g. 1kg, bag"],
         ["market", "Market", "Market name"],
         ["city", "City", "City"],
-        ["country", "Country", "Country"],
       ].map(([name, label, placeholder]) => <label key={name} className="text-sm font-semibold">{label}<input required className={input} name={name} type={name === "price" ? "number" : "text"} min={name === "price" ? "0.01" : undefined} step={name === "price" ? "any" : undefined} placeholder={placeholder} value={form[name]} onChange={(event) => setForm((prev) => ({ ...prev, [name]: event.target.value }))} /></label>)}
-      <label className="text-sm font-semibold">Currency<select className={input} name="currency" value={form.currency} onChange={(event) => setForm((prev) => ({ ...prev, currency: event.target.value }))}><option>NGN</option><option>KES</option><option>INR</option><option>PHP</option><option>GHS</option><option>ZAR</option><option>USD</option></select></label>
+      <p className="rounded-xl bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">Nigeria · NGN (Naira)</p>
       <label className="text-sm font-semibold">Photo proof (optional)<input className={input} type="file" accept="image/*" capture="environment" onChange={(event) => setPhoto(event.target.files?.[0] ?? null)} /></label>
       {notice && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900 md:col-span-2">{notice}</p>}
       <button disabled={busy} className="rounded-xl bg-brand px-5 py-3 font-bold text-white disabled:opacity-60 md:col-span-2">{busy ? "Submitting…" : "Submit for review"}</button>

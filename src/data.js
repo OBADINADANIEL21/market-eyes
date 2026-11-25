@@ -142,15 +142,15 @@ const buildHistory = (entry) => {
 };
 
 // ===== Main export: every price, enriched =====
-export const prices = rawPrices.map((p, i) => {
-  return {
+export const prices = rawPrices
+  .filter((entry) => entry.country === "Nigeria")
+  .map((p, i) => ({
     ...p,
     id: `${p.city}-${i}`,
     verifiedCount: 0,
     verifiedToday: 0,
     history: buildHistory(p),
-  };
-});
+  }));
 
 // ===== Item emojis =====
 // Keyed by short item name (used for the quick-pick chips in Search).
