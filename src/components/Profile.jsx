@@ -5,10 +5,62 @@ import { listQueuedItems } from "../lib/offlineQueue";
 
 const initialSettings = { data_saver: true, auto_download_vn: false, sync_only_wifi: false, notify_message: true, notify_call: true, notify_sound: true, notify_vibrate: true, do_not_disturb: false };
 
+let oneSignalInitPromise;
+
+async function initializeOneSignal(appId) {
+  const { default: OneSignal } = await import("react-onesignal");
+  if (!oneSignalInitPromise) {
+    oneSignalInitPromise = OneSignal.init({
+      appId,
+      allowLocalhostAsSecureOrigin: true,
+      serviceWorkerPath: "/sw.js",
+      serviceWorkerParam: { scope: "/" },
+    }).catch((error) => {
+      oneSignalInitPromise = null;
+      throw error;
+    });
+  }
+  await oneSignalInitPromise;
+  return OneSignal;
+}
+
+function waitForPushSubscription(OneSignal) {
+  const subscription = OneSignal.User.PushSubscription;
+  if (subscription.optedIn && subscription.id) return Promise.resolve(subscription.id);
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let timeout;
+    const finish = (id, error) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      subscription.removeEventListener("change", onChange);
+      if (error) reject(error);
+      else resolve(id);
+    };
+    const onChange = (event) => {
+      if (event.current.optedIn && event.current.id) finish(event.current.id);
+    };
+
+    subscription.addEventListener("change", onChange);
+    timeout = window.setTimeout(
+      () => finish(null, new Error("Push subscription did not become active in time.")),
+      15000
+    );
+    try {
+      Promise.resolve(subscription.optIn()).catch((error) => finish(null, error));
+    } catch (error) {
+      finish(null, error);
+    }
+  });
+}
+
 export default function Profile({ goTo }) {
   const { user, profile, refreshProfile } = useAuth();
   const [settings, setSettings] = useState(initialSettings);
   const [notice, setNotice] = useState("");
+  const [noticeType, setNoticeType] = useState("success");
   const [queueLength, setQueueLength] = useState(listQueuedItems().length);
   const [pushLoading, setPushLoading] = useState(false);
 
@@ -26,10 +78,12 @@ export default function Profile({ goTo }) {
     const next = { ...settings, [name]: checked };
     setSettings(next);
     setNotice("");
+    setNoticeType("success");
     const { error } = await supabase.from("profiles").update({ [name]: checked }).eq("id", user.id);
     if (error) {
       console.error("Could not update profile settings:", error);
       setNotice("Could not save this setting. Please try again.");
+      setNoticeType("error");
     } else {
       await refreshProfile();
       setNotice("Settings saved.");
@@ -38,31 +92,41 @@ export default function Profile({ goTo }) {
 
   const enableNotifications = async () => {
     const appId = import.meta.env.VITE_ONESIGNAL_APP_ID;
-    if (!appId || !user || !("Notification" in window)) {
+    if (!appId) {
       setNotice("Push notifications are not configured for this site.");
+      setNoticeType("error");
+      return;
+    }
+    if (!user || !("Notification" in window) || !("serviceWorker" in navigator)) {
+      setNotice("Push notifications are not supported in this browser session.");
+      setNoticeType("error");
+      return;
+    }
+    if (Notification.permission === "denied") {
+      setNotice("Notifications are blocked for this site. Open the site settings beside the address bar, allow Notifications, reload, then try again.");
+      setNoticeType("error");
       return;
     }
     setPushLoading(true);
     try {
-      const { default: OneSignal } = await import("react-onesignal");
-      await OneSignal.init({
-        appId,
-        allowLocalhostAsSecureOrigin: true,
-        serviceWorkerPath: "/sw.js",
-        serviceWorkerParam: { scope: "/" },
-      });
+      setNotice("");
+      setNoticeType("success");
+      const OneSignal = await initializeOneSignal(appId);
       await OneSignal.login(user.id);
       await OneSignal.User.addTag("user_id", user.id);
       await OneSignal.Notifications.requestPermission();
-      const playerId = OneSignal.User.PushSubscription.id;
-      if (playerId) {
-        const { error } = await supabase.from("profiles").update({ push_player_id: playerId }).eq("id", user.id);
-        if (error) throw error;
+      if (Notification.permission !== "granted") {
+        setNotice("Notification permission was not granted. Choose Allow in the browser prompt to enable push.");
+        setNoticeType("error");
+        return;
       }
-      setNotice("Notification preference saved in your browser.");
+      await waitForPushSubscription(OneSignal);
+      setNotice("Push is enabled on this browser. Test it with a new message or call while the receiving account is away from MARKET EYE.");
+      setNoticeType("success");
     } catch (error) {
       console.error("Could not enable push notifications:", error);
-      setNotice("Could not enable notifications. Check browser permission and try again.");
+      setNotice(error instanceof Error ? `Could not enable notifications: ${error.message}` : "Could not enable notifications. Check browser permission and try again.");
+      setNoticeType("error");
     } finally {
       setPushLoading(false);
     }
@@ -71,6 +135,7 @@ export default function Profile({ goTo }) {
   const clearCache = () => {
     localStorage.removeItem("market-eye-price-cache");
     setNotice("Cached prices cleared. Your queued messages and reports were kept.");
+    setNoticeType("success");
   };
   const toggles = [
     ["data_saver", "Data Saver"],
@@ -104,7 +169,7 @@ export default function Profile({ goTo }) {
           <button onClick={() => goTo("pending-sync")} className="rounded-xl border px-4 py-3 font-semibold">Pending sync ({queueLength})</button>
         </div>
       </section>
-      {notice && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900">{notice}</p>}
+      {notice && <p role={noticeType === "error" ? "alert" : "status"} className={`mt-4 rounded-xl p-3 text-sm ${noticeType === "error" ? "bg-red-50 text-red-900" : "bg-emerald-50 text-emerald-900"}`}>{notice}</p>}
       <section className="mt-5 rounded-2xl bg-white p-5 shadow">
         <h2 className="text-xl font-bold">Data usage</h2>
         <p className="mt-2 text-sm text-gray-600">Usage is estimated by your browser; MARKET EYE does not receive a precise network-byte counter.</p>

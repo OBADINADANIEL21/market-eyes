@@ -195,10 +195,15 @@ export default function Chat({ chatId, goTo }) {
     appendMessage(displayMessage);
     const { error: convoError } = await supabase.from("conversations").update({ last_message: payload.message, last_message_at: new Date().toISOString() }).eq("id", chatId);
     if (convoError) console.warn("Could not update conversation preview:", convoError);
-    const { error: pushError } = await supabase.functions.invoke("send-push", {
+    const { data: pushResult, error: pushError } = await supabase.functions.invoke("send-push", {
       body: { type: "message", messageId: data.id },
     });
-    if (pushError) console.warn("Message saved; notification could not be sent:", pushError);
+    if (pushError) {
+      console.warn("Message saved; notification could not be sent:", pushError);
+      setNotice("Message sent, but its push alert failed. The recipient can still see it in chat.");
+    } else if (pushResult?.skipped) {
+      setNotice("Message sent; no push alert was sent because notifications are off, Do Not Disturb applies, or the recipient was active.");
+    }
   };
 
   const submitText = async (event) => {
@@ -293,10 +298,15 @@ export default function Chat({ chatId, goTo }) {
       }).select("id,conversation_id,caller_id,receiver_id,call_type,status,created_at").single();
       if (error) throw error;
       setCall(data);
-      const { error: pushError } = await supabase.functions.invoke("send-push", {
+      const { data: pushResult, error: pushError } = await supabase.functions.invoke("send-push", {
         body: { type: "call", callId: data.id },
       });
-      if (pushError) console.warn("Call started; push notification could not be sent:", pushError);
+      if (pushError) {
+        console.warn("Call started; push notification could not be sent:", pushError);
+        setNotice("Call started, but its push alert failed. The recipient may not see it.");
+      } else if (pushResult?.skipped) {
+        setNotice("Call started, but no push alert was sent because notifications are off, Do Not Disturb applies, or the recipient was active.");
+      }
     } catch (error) {
       console.error("Could not start call:", error);
       setNotice("Could not start this call. Check camera/microphone permission and try again.");

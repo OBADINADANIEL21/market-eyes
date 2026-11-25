@@ -197,13 +197,16 @@ create table if not exists public.seller_posts (
 create table if not exists public.pending_reviews (
   id uuid primary key default gen_random_uuid(),
   submission_type text not null check (submission_type in ('seller_post', 'report')),
-  submission_id uuid not null,
+  submission_id text not null,
   status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
   moderator_id uuid references public.profiles(id),
   created_at timestamptz not null default now(),
   reviewed_at timestamptz,
   unique (submission_type, submission_id)
 );
+
+alter table public.pending_reviews
+  alter column submission_id type text using submission_id::text;
 
 create table if not exists public.price_history (
   id uuid primary key default gen_random_uuid(),
@@ -433,7 +436,7 @@ begin
     update public.seller_posts set status = 'approved', reviewed_at = now() where id = new.id;
   else
     insert into public.pending_reviews (submission_type, submission_id)
-    values ('seller_post', new.id)
+    values ('seller_post', new.id::text)
     on conflict (submission_type, submission_id) do nothing;
   end if;
   return new;
@@ -453,7 +456,7 @@ set search_path = public, pg_temp
 as $$
 begin
   insert into public.pending_reviews (submission_type, submission_id)
-  values ('report', new.id)
+  values ('report', new.id::text)
   on conflict (submission_type, submission_id) do nothing;
   return new;
 end;
@@ -482,11 +485,14 @@ begin
     perform public.apply_price_listing(v_post.item, v_post.country, v_post.city, v_post.market, v_post.unit, v_post.price, v_post.currency, v_post.seller_id, v_post.photo_url, 'seller-approved');
   end if;
   update public.seller_posts set status = case when p_decision = 'approve' then 'approved' else 'rejected' end, reviewed_at = now(), reviewed_by = auth.uid() where id = p_submission_id;
-  update public.pending_reviews set status = case when p_decision = 'approve' then 'approved' else 'rejected' end, moderator_id = auth.uid(), reviewed_at = now() where submission_type = 'seller_post' and submission_id = p_submission_id;
+  update public.pending_reviews set status = case when p_decision = 'approve' then 'approved' else 'rejected' end, moderator_id = auth.uid(), reviewed_at = now() where submission_type = 'seller_post' and submission_id = p_submission_id::text;
 end;
 $$;
 
-create or replace function public.review_price_report(p_submission_id uuid, p_decision text)
+drop function if exists public.review_price_report(uuid, text);
+drop function if exists public.review_price_report(bigint, text);
+
+create or replace function public.review_price_report(p_submission_id text, p_decision text)
 returns void
 language plpgsql
 security definer
@@ -497,13 +503,13 @@ declare
 begin
   if not public.is_market_moderator() then raise exception 'Moderator access required'; end if;
   if p_decision not in ('approve', 'reject') then raise exception 'Invalid review decision'; end if;
-  select * into v_report from public.reports where id = p_submission_id for update;
+  select * into v_report from public.reports where id::text = p_submission_id for update;
   if not found or v_report.status <> 'pending' then raise exception 'Submission is no longer pending'; end if;
 
   if p_decision = 'approve' then
     perform public.apply_price_listing(v_report.item, v_report.country, v_report.city, v_report.market, v_report.unit, v_report.price, v_report.currency, null, v_report.photo_url, 'community-approved');
   end if;
-  update public.reports set status = case when p_decision = 'approve' then 'approved' else 'rejected' end, reviewed_at = now(), reviewed_by = auth.uid() where id = p_submission_id;
+  update public.reports set status = case when p_decision = 'approve' then 'approved' else 'rejected' end, reviewed_at = now(), reviewed_by = auth.uid() where id::text = p_submission_id;
   update public.pending_reviews set status = case when p_decision = 'approve' then 'approved' else 'rejected' end, moderator_id = auth.uid(), reviewed_at = now() where submission_type = 'report' and submission_id = p_submission_id;
 end;
 $$;
@@ -719,7 +725,7 @@ grant update (last_message,last_message_at) on public.conversations to authentic
 grant insert (conversation_id,caller_id,receiver_id,call_type,status) on public.calls to authenticated;
 grant execute on function public.get_or_create_conversation(uuid) to authenticated;
 grant execute on function public.review_seller_post(uuid,text) to authenticated;
-grant execute on function public.review_price_report(uuid,text) to authenticated;
+grant execute on function public.review_price_report(text,text) to authenticated;
 grant execute on function public.verify_price(bigint) to authenticated;
 grant execute on function public.update_call_status(uuid,text) to authenticated;
 revoke all on function public.apply_price_listing(text,text,text,text,text,numeric,text,uuid,text,text) from public, anon, authenticated;

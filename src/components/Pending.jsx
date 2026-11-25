@@ -30,7 +30,8 @@ export default function Pending() {
     setNotice("");
     try {
       const rpc = table === "seller_posts" ? "review_seller_post" : "review_price_report";
-      const { error } = await supabase.rpc(rpc, { p_submission_id: id, p_decision: action });
+      const submissionId = table === "seller_posts" ? id : String(id);
+      const { error } = await supabase.rpc(rpc, { p_submission_id: submissionId, p_decision: action });
       if (error) throw error;
       setNotice(`${action === "approve" ? "Approved" : "Rejected"} successfully.`);
       setReload((count) => count + 1);
