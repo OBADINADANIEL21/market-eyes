@@ -775,6 +775,7 @@ create policy "Users can place calls" on public.calls for insert to authenticate
 create policy "Users can read their verifications" on public.price_verifications for select to authenticated using (user_id = auth.uid());
 
 alter table public.markets
+  add column if not exists country text not null default 'Nigeria',
   add column if not exists latitude double precision,
   add column if not exists longitude double precision;
 
