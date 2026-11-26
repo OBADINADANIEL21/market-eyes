@@ -217,7 +217,7 @@ export default function Chat({ chatId, goTo }) {
       const detail = await getPushErrorDetail(pushError);
       setNotice(`Message sent, but its push alert failed (${detail}). The recipient can still see it in chat.`);
     } else if (pushResult?.skipped) {
-      setNotice("Message sent; no push alert was sent because notifications are off, Do Not Disturb applies, or the recipient was active.");
+      setNotice("Message sent; no push alert was sent because notifications are off or Do Not Disturb applies.");
     }
   };
 
@@ -321,7 +321,7 @@ export default function Chat({ chatId, goTo }) {
         const detail = await getPushErrorDetail(pushError);
         setNotice(`Call started, but its push alert failed (${detail}). The recipient may not see it.`);
       } else if (pushResult?.skipped) {
-        setNotice("Call started, but no push alert was sent because notifications are off, Do Not Disturb applies, or the recipient was active.");
+        setNotice("Call started, but no push alert was sent because notifications are off or Do Not Disturb applies.");
       }
     } catch (error) {
       console.error("Could not start call:", error);

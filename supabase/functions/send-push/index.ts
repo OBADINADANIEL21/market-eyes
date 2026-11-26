@@ -93,7 +93,6 @@ Deno.serve(async (request: Request) => {
   }
   if (!recipient) return Response.json({ error: "Recipient unavailable." }, { status: 404, headers: corsHeaders });
   const enabled = payload.type === "message" ? recipient.notify_message : recipient.notify_call;
-  const recentlySeen = recipient.last_seen && Date.now() - new Date(recipient.last_seen).getTime() < 120_000;
   let localHour = new Date().getUTCHours();
   try {
     localHour = Number(new Intl.DateTimeFormat("en-US", {
@@ -105,7 +104,7 @@ Deno.serve(async (request: Request) => {
     console.warn("Invalid profile timezone; using UTC for quiet hours:", error);
   }
   const quietHours = localHour >= 22 || localHour < 6;
-  if (!enabled || recentlySeen || (recipient.do_not_disturb && quietHours)) {
+  if (!enabled || (recipient.do_not_disturb && quietHours)) {
     return Response.json({ skipped: true }, { headers: corsHeaders });
   }
 
@@ -131,6 +130,12 @@ Deno.serve(async (request: Request) => {
   if (!response.ok) {
     console.error("OneSignal API rejected notification:", result);
     return Response.json({ error: "Notification could not be delivered." }, { status: 502, headers: corsHeaders });
+  }
+  if (result?.recipients === 0) {
+    console.warn("OneSignal accepted the notification but found no subscribed devices for the recipient.");
+    return Response.json({
+      error: "No push-enabled device is linked to the recipient. Enable notifications on their device and try again.",
+    }, { status: 502, headers: corsHeaders });
   }
   return Response.json({ sent: true }, { headers: corsHeaders });
 });
