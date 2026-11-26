@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Component, Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { SettingsProvider, useSettings } from "./context/SettingsContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Navbar from "./components/Navbar";
@@ -42,6 +42,33 @@ function routeFromLocation() {
   if (chatMatch) return { page: "chat", chatId: decodeURIComponent(chatMatch[1]) };
   const entry = Object.entries(pages).find(([, page]) => page.path === path);
   return { page: entry?.[0] ?? "home", chatId: null };
+}
+
+class PageErrorBoundary extends Component {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error) {
+    console.error("Page failed to load:", error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div role="alert" className="mx-auto max-w-lg p-8 text-center">
+          <h1 className="text-xl font-bold">This page could not load.</h1>
+          <p className="mt-2 text-gray-600">Check your connection, then reload the page.</p>
+          <button type="button" className="mt-5 rounded-xl bg-brand px-5 py-3 font-bold text-white" onClick={() => window.location.reload()}>
+            Reload page
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 function Shell() {
@@ -191,9 +218,11 @@ function Shell() {
             <button className="mt-5 rounded-xl bg-brand px-5 py-3 font-bold text-white" onClick={() => navigate("home")}>Go home</button>
           </div>
         ) : (
-          <Suspense fallback={<div className="p-10 text-center" role="status">Loading…</div>}>
-            <CurrentPage goTo={navigate} chatId={route.chatId} />
-          </Suspense>
+          <PageErrorBoundary key={`${page}-${route.chatId ?? ""}`}>
+            <Suspense fallback={<div className="p-10 text-center" role="status">Loading…</div>}>
+              <CurrentPage goTo={navigate} chatId={route.chatId} />
+            </Suspense>
+          </PageErrorBoundary>
         )}
       </main>
       {user && (

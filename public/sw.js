@@ -4,7 +4,7 @@ try {
   console.error("OneSignal service worker could not load:", error);
 }
 
-const APP_CACHE = "market-eye-app-v1";
+const APP_CACHE = "market-eye-app-v2";
 const PRICE_CACHE = "market-eye-prices-v1";
 const CORE_FILES = ["/", "/manifest.webmanifest", "/market-eye.svg"];
 
@@ -57,6 +57,18 @@ self.addEventListener("fetch", (event) => {
     event.respondWith((async () => {
       const cache = await caches.open(APP_CACHE);
       const cached = await cache.match(request) || (request.mode === "navigate" ? await cache.match("/") : null);
+      if (request.mode === "navigate") {
+        try {
+          const response = await fetch(request);
+          if (response.ok) {
+            await cache.put(request, response.clone());
+            await cache.put("/", response.clone());
+          }
+          return response;
+        } catch {
+          return cached || (await cache.match("/")) || Response.error();
+        }
+      }
       const network = fetch(request).then((response) => {
         if (response.ok) void cache.put(request, response.clone());
         return response;
