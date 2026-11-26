@@ -776,6 +776,7 @@ create policy "Users can read their verifications" on public.price_verifications
 
 alter table public.markets
   add column if not exists country text not null default 'Nigeria',
+  add column if not exists city text not null default '',
   add column if not exists latitude double precision,
   add column if not exists longitude double precision;
 
