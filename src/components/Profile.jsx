@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabase";
 import { listQueuedItems } from "../lib/offlineQueue";
 import { normalizeHttpsUrl, normalizeNigerianWhatsApp } from "../lib/whatsapp";
 
-const initialSettings = { data_saver: true, auto_download_vn: false, sync_only_wifi: false, notify_message: true, notify_call: true, notify_sound: true, notify_vibrate: true, do_not_disturb: false };
+const initialSettings = { data_saver: true, auto_download_vn: false, sync_only_wifi: false, notify_message: true, notify_call: true, notify_brief: false, notify_sound: true, notify_vibrate: true, do_not_disturb: false };
 
 let oneSignalInitPromise;
 
@@ -198,6 +198,7 @@ export default function Profile({ goTo }) {
     ["sync_only_wifi", "Sync only on Wi-Fi"],
     ["notify_message", "Message notifications"],
     ["notify_call", "Call notifications"],
+    ["notify_brief", "Daily price brief at 7am"],
     ["notify_sound", "Notification sound"],
     ["notify_vibrate", "Vibration"],
     ["do_not_disturb", "Do Not Disturb (10pm–6am)"],
@@ -234,7 +235,7 @@ export default function Profile({ goTo }) {
         <p className="my-3 text-sm text-gray-500">Images are compressed to at most 800px and about 200KB before upload. Voice recording/network quality is subject to browser and device support.</p>
         <div className="flex flex-wrap gap-2">
           <div className="w-full">
-            <p className="mb-2 text-sm text-gray-600">Allow MARKET EYE to send message and call alerts.</p>
+            <p className="mb-2 text-sm text-gray-600">Allow MARKET EYE to send message, call and daily price brief alerts.</p>
             <button onClick={() => void enableNotifications()} disabled={pushLoading} className="rounded-xl bg-brand px-4 py-3 font-bold text-white">{pushLoading ? "Enabling…" : "Enable push notifications"}</button>
           </div>
           <button onClick={clearCache} className="rounded-xl border px-4 py-3 font-semibold">Clear cached prices</button>

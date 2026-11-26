@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import { fileAsDataUrl } from "../lib/uploads";
 import { queueItem } from "../lib/offlineQueue";
 import { readLocalCache, writeLocalCache } from "../lib/localCache";
+import { getPresenceText, isUserOnline } from "../lib/presence";
 
 async function getPushErrorDetail(error) {
   const response = error?.context;
@@ -31,6 +32,7 @@ export default function Chat({ chatId, goTo }) {
   const [call, setCall] = useState(null);
   const [incoming, setIncoming] = useState(false);
   const [callType, setCallType] = useState("voice");
+  const [now, setNow] = useState(Date.now());
   const recorderRef = useRef(null);
   const streamRef = useRef(null);
   const chunksRef = useRef([]);
@@ -71,7 +73,7 @@ export default function Chat({ chatId, goTo }) {
     setConversation(convo);
     const otherId = convo.participant_one === user.id ? convo.participant_two : convo.participant_one;
     const [{ data: person, error: personError }, { data: rows, error: messagesError }] = await Promise.all([
-      supabase.from("public_profiles").select("id,name,role,market").eq("id", otherId).maybeSingle(),
+      supabase.from("public_profiles").select("id,name,role,market,last_seen").eq("id", otherId).maybeSingle(),
       supabase.from("messages").select("id,conversation_id,sender_id,receiver_id,message,message_type,audio_url,audio_size_bytes,is_read,created_at").eq("conversation_id", chatId).order("created_at", { ascending: true }).limit(200),
     ]);
     if (personError || messagesError) {
@@ -118,6 +120,32 @@ export default function Chat({ chatId, goTo }) {
       .subscribe();
     return () => { void supabase.removeChannel(channel); void supabase.removeChannel(callChannel); };
   }, [load, chatId, user.id]);
+
+  const refreshPresence = useCallback(async () => {
+    if (!otherUser?.id || !navigator.onLine) return;
+    const { data, error } = await supabase.from("public_profiles")
+      .select("last_seen")
+      .eq("id", otherUser.id)
+      .maybeSingle();
+    if (error) {
+      console.warn("Could not refresh chat presence:", error);
+      return;
+    }
+    if (data) {
+      setOtherUser((current) => current?.id === otherUser.id ? { ...current, last_seen: data.last_seen } : current);
+    }
+  }, [otherUser?.id]);
+
+  useEffect(() => {
+    const clock = window.setInterval(() => setNow(Date.now()), 15_000);
+    return () => window.clearInterval(clock);
+  }, []);
+
+  useEffect(() => {
+    if (!otherUser?.id) return undefined;
+    const timer = window.setInterval(() => void refreshPresence(), 30_000);
+    return () => window.clearInterval(timer);
+  }, [otherUser?.id, refreshPresence]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -352,7 +380,13 @@ export default function Chat({ chatId, goTo }) {
   return <div className="mx-auto flex h-[calc(100dvh-10rem)] max-w-3xl flex-col px-3 py-4">
     <header className="flex items-center gap-3 rounded-t-2xl bg-white p-4 shadow">
       <button onClick={() => goTo("messages")} aria-label="Back to messages" className="text-xl">←</button>
-      <div className="min-w-0 flex-1"><div className="truncate font-bold">{otherUser?.name ?? "Conversation"}</div><div className="text-xs text-gray-500">{otherUser?.market} · {otherUser?.role}</div></div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-bold">{otherUser?.name ?? "Conversation"}</div>
+        <div className={`flex items-center gap-1 text-xs ${isUserOnline(otherUser?.last_seen, now) ? "text-green-700" : "text-gray-500"}`}>
+          <span aria-hidden="true" className={`h-2 w-2 rounded-full ${isUserOnline(otherUser?.last_seen, now) ? "bg-green-500" : "bg-gray-400"}`} />
+          <span className="truncate">{getPresenceText(otherUser?.last_seen, now)}{otherUser?.market ? ` · ${otherUser.market}` : ""}{otherUser?.role ? ` · ${otherUser.role}` : ""}</span>
+        </div>
+      </div>
       <button onClick={() => void createCall("voice")} aria-label="Voice call" className="rounded-full p-2 text-xl">📞</button>
       <button onClick={() => void createCall("video")} aria-label="Video call" className="rounded-full p-2 text-xl">📹</button>
     </header>

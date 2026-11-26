@@ -10,6 +10,9 @@ const Home = lazy(() => import("./components/Home"));
 const Search = lazy(() => import("./components/Search"));
 const Compare = lazy(() => import("./components/Compare"));
 const BulkCompare = lazy(() => import("./components/BulkCompare"));
+const PriceBrief = lazy(() => import("./components/PriceBrief"));
+const HeatMap = lazy(() => import("./components/HeatMap"));
+const SeasonCalendar = lazy(() => import("./components/SeasonCalendar"));
 const Report = lazy(() => import("./components/Report"));
 const Auth = lazy(() => import("./components/Auth"));
 const Markets = lazy(() => import("./components/Markets"));
@@ -27,6 +30,9 @@ const pages = {
   search: { labelKey: "nav.search", label: "Search Prices", icon: "🔎", component: Search, path: "/search" },
   compare: { labelKey: "nav.compare", label: "Compare", icon: "⚖️", component: Compare, path: "/compare" },
   bulk: { labelKey: "nav.compare", label: "Bulk compare", icon: "🧺", component: BulkCompare, path: "/compare-bulk" },
+  brief: { labelKey: "nav.home", label: "Daily brief", icon: "📰", component: PriceBrief, path: "/brief" },
+  heatmap: { labelKey: "nav.markets", label: "Market heat map", icon: "🗺️", component: HeatMap, path: "/heat-map" },
+  seasons: { labelKey: "nav.markets", label: "Season calendar", icon: "🗓️", component: SeasonCalendar, path: "/season" },
   report: { labelKey: "nav.report", label: "Report", icon: "📝", component: Report, path: "/report" },
   auth: { labelKey: "nav.auth", label: "Log in", icon: "🔐", component: Auth, path: "/auth" },
   seller: { labelKey: "nav.seller", label: "Seller", icon: "🏪", component: Seller, path: "/seller", protected: true },

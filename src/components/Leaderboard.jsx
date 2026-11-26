@@ -5,7 +5,7 @@ import { useSettings } from "../context/SettingsContext";
 const medals = ["🥇", "🥈", "🥉"];
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** Ranks real listings from the last week; demo estimates are never presented as winners. */
+/** Ranks approved listings from the last week only. */
 export default function Leaderboard({ prices = [], dataSource }) {
   const { lang } = useSettings();
   const recent = dataSource === "supabase"

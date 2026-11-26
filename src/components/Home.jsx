@@ -2,8 +2,9 @@ import { useSettings } from "../context/SettingsContext";
 import { useLivePrices } from "../hooks/useLivePrices";
 import PriceCard from "./PriceCard";
 import Leaderboard from "./Leaderboard";
+import ReporterLive from "./ReporterLive";
 
-// Demo estimates highlighted on the home page ([item, city]).
+// Preferred items shown first when approved listings exist ([item, city]).
 const steps = [
   { step: "1", icon: "🔎", key: "check" },
   { step: "2", icon: "⚖️", key: "compare" },
@@ -71,10 +72,12 @@ export default function Home({ goTo }) {
         </div>
       </section>
 
-      {dataSource !== "supabase" && (
+      <ReporterLive prices={prices} now={now} />
+
+      {dataSource !== "supabase" && !loading && (
         <div className="max-w-7xl mx-auto px-4 pt-5">
           <div role="status" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-            {t("prices.fallback")}
+            {dataError ? "Price listings could not be loaded. Check your connection and try again." : "No verified market prices are available yet. We do not display estimated prices."}
           </div>
         </div>
       )}
@@ -141,6 +144,9 @@ export default function Home({ goTo }) {
       {/* ===== LEADERBOARD ===== */}
       <Leaderboard prices={prices} dataSource={dataSource} />
       <div className="pb-6 text-center">
+        <button onClick={() => goTo("brief")} className="mr-2 rounded-xl bg-brand px-5 py-3 font-bold text-white">Daily price brief</button>
+        <button onClick={() => goTo("heatmap")} className="mr-2 rounded-xl border border-brand px-5 py-3 font-bold text-brand">Market heat map</button>
+        <button onClick={() => goTo("seasons")} className="mr-2 rounded-xl border border-brand px-5 py-3 font-bold text-brand">Season calendar</button>
         <button onClick={() => goTo("sellers")} className="rounded-xl border border-brand px-5 py-3 font-bold text-brand">Browse top sellers</button>
       </div>
 

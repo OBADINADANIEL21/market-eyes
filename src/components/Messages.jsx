@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
 import { readLocalCache, writeLocalCache } from "../lib/localCache";
+import { getPresenceText, isUserOnline } from "../lib/presence";
 
 export default function Messages({ goTo }) {
   const { user } = useAuth();
@@ -12,6 +13,7 @@ export default function Messages({ goTo }) {
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
+  const [now, setNow] = useState(Date.now());
 
   const load = useCallback(async () => {
     const [peopleResult, convoResult] = await Promise.all([
@@ -54,6 +56,33 @@ export default function Messages({ goTo }) {
     return () => { void supabase.removeChannel(channel); };
   }, [load, user.id]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const refreshPresence = useCallback(async () => {
+    if (!navigator.onLine) return;
+    const { data, error } = await supabase.from("public_profiles")
+      .select("id,last_seen")
+      .neq("id", user.id)
+      .order("name")
+      .limit(100);
+    if (error) {
+      console.warn("Could not refresh message-list presence:", error);
+      return;
+    }
+    const latestById = new Map((data ?? []).map((person) => [person.id, person.last_seen]));
+    setProfiles((current) => current.map((person) =>
+      latestById.has(person.id) ? { ...person, last_seen: latestById.get(person.id) } : person
+    ));
+  }, [user.id]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => void refreshPresence(), 30_000);
+    return () => window.clearInterval(timer);
+  }, [refreshPresence]);
+
   const filtered = useMemo(() => profiles.filter((person) => `${person.name} ${person.market} ${person.role}`.toLowerCase().includes(query.toLowerCase())), [profiles, query]);
   const openConversation = async (person) => {
     const a = user.id < person.id ? user.id : person.id;
@@ -82,10 +111,15 @@ export default function Messages({ goTo }) {
       const a = user.id < person.id ? user.id : person.id;
       const b = user.id < person.id ? person.id : user.id;
       const chat = conversations.find((row) => row.participant_one === a && row.participant_two === b);
-      const isOnline = person.last_seen && Date.now() - new Date(person.last_seen).getTime() < 120_000;
+      const online = isUserOnline(person.last_seen, now);
       return <li key={person.id}><button disabled={busy} onClick={() => void openConversation(person)} className="flex w-full items-center gap-3 p-4 text-left hover:bg-emerald-50">
-        <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full bg-emerald-100 text-lg font-bold text-brand">{person.name?.[0]?.toUpperCase() ?? "?"}<span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white ${isOnline ? "bg-green-500" : "bg-gray-300"}`} /></span>
-        <span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2 font-bold">{person.name || "MARKET EYE user"}<span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs capitalize">{person.role}</span></span><span className="block truncate text-xs text-gray-500">{person.market || "Market not set"} · {chat?.last_message || (isOnline ? "Online now" : "Start a conversation")}</span></span>
+        <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full bg-emerald-100 text-lg font-bold text-brand">{person.name?.[0]?.toUpperCase() ?? "?"}<span aria-label={online ? "Online" : "Offline"} className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white ${online ? "bg-green-500" : "bg-gray-300"}`} /></span>
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-2 font-bold">{person.name || "MARKET EYE user"}<span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs capitalize">{person.role}</span></span>
+          <span className="block truncate text-xs text-gray-500">{person.market || "Market not set"}</span>
+          <span className={`block text-xs ${online ? "font-semibold text-green-700" : "text-gray-500"}`}>{getPresenceText(person.last_seen, now)}</span>
+          {chat?.last_message && <span className="block truncate text-xs text-gray-500">{chat.last_message}</span>}
+        </span>
         {chat && (unread[chat.id] > 0 || missed[chat.id] > 0) && <span className="flex gap-1">{unread[chat.id] > 0 && <span className="rounded-full bg-brand px-2 py-1 text-xs font-bold text-white">{unread[chat.id]}</span>}{missed[chat.id] > 0 && <span className="rounded-full bg-red-600 px-2 py-1 text-xs font-bold text-white">☎ {missed[chat.id]}</span>}</span>}
       </button></li>;
     })}</ul> : <p className="rounded-xl bg-white p-5 text-gray-600">No matching users yet.</p>}

@@ -146,6 +146,7 @@ create table if not exists public.profiles (
   sync_only_wifi boolean not null default false,
   notify_message boolean not null default true,
   notify_call boolean not null default true,
+  notify_brief boolean not null default false,
   notify_sound boolean not null default true,
   notify_vibrate boolean not null default true,
   do_not_disturb boolean not null default false,
@@ -243,8 +244,14 @@ create table if not exists public.markets (
   name text not null,
   country text not null,
   city text not null,
+  latitude double precision,
+  longitude double precision,
   created_at timestamptz not null default now(),
-  unique (name, country, city)
+  unique (name, country, city),
+  constraint markets_valid_coordinates check (
+    (latitude is null and longitude is null)
+    or (latitude between -90 and 90 and longitude between -180 and 180)
+  )
 );
 
 create table if not exists public.alerts (
@@ -728,6 +735,10 @@ $$;
 
 create policy "Public can read prices" on public.prices for select to anon, authenticated using (true);
 create policy "Public can read markets" on public.markets for select to anon, authenticated using (true);
+create policy "Admins manage market coordinates" on public.markets
+  for all to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
 create policy "Users can create price reports" on public.reports for insert to anon, authenticated with check (
   length(trim(name)) > 0 and length(trim(country)) > 0 and length(trim(city)) > 0
   and length(trim(market)) > 0 and length(trim(item)) > 0 and length(trim(unit)) > 0
@@ -763,16 +774,143 @@ create policy "Users can place calls" on public.calls for insert to authenticate
 );
 create policy "Users can read their verifications" on public.price_verifications for select to authenticated using (user_id = auth.uid());
 
+alter table public.markets
+  add column if not exists latitude double precision,
+  add column if not exists longitude double precision;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'markets_valid_coordinates'
+      and conrelid = 'public.markets'::regclass
+  ) then
+    alter table public.markets
+      add constraint markets_valid_coordinates check (
+        (latitude is null and longitude is null)
+        or (latitude between -90 and 90 and longitude between -180 and 180)
+      ) not valid;
+  end if;
+end
+$$;
+
+create table if not exists public.seasons (
+  item text primary key check (length(trim(item)) > 0),
+  cheap_months smallint[] not null default '{}',
+  costly_months smallint[] not null default '{}',
+  notes text not null default '',
+  updated_at timestamptz not null default now(),
+  updated_by uuid references public.profiles(id)
+);
+
+alter table public.seasons enable row level security;
+drop policy if exists "Public can read seasons" on public.seasons;
+create policy "Public can read seasons" on public.seasons
+  for select to anon, authenticated using (true);
+drop policy if exists "Admins manage seasons" on public.seasons;
+create policy "Admins manage seasons" on public.seasons
+  for all to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
+
+create table if not exists public.price_votes (
+  voter_id uuid not null references auth.users(id) on delete cascade,
+  item text not null,
+  market text not null,
+  price_date date not null,
+  price_id bigint not null references public.prices(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (voter_id, item, market, price_date)
+);
+
+alter table public.price_votes enable row level security;
+drop policy if exists "Users can read their own price votes" on public.price_votes;
+create policy "Users can read their own price votes" on public.price_votes
+  for select to authenticated using (voter_id = auth.uid());
+
+create or replace function public.cast_price_vote(
+  p_price_id bigint,
+  p_item text,
+  p_market text,
+  p_price_date date
+)
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if auth.uid() is null then raise exception 'Sign in to vote'; end if;
+  if not exists (
+    select 1 from public.prices
+    where id = p_price_id
+      and item = p_item
+      and market = p_market
+      and country = 'Nigeria'
+      and created_at::date = p_price_date
+  ) then
+    raise exception 'This price is not part of the selected market debate';
+  end if;
+
+  insert into public.price_votes (voter_id, item, market, price_date, price_id)
+  values (auth.uid(), p_item, p_market, p_price_date, p_price_id)
+  on conflict (voter_id, item, market, price_date)
+  do update set price_id = excluded.price_id, created_at = now();
+end;
+$$;
+
+create or replace view public.price_vote_totals with (security_barrier = true) as
+  select price_id, count(*)::integer as vote_count
+  from public.price_votes
+  group by price_id;
+
+create table if not exists public.price_views (
+  price_id bigint not null references public.prices(id) on delete cascade,
+  viewer_id uuid not null references auth.users(id) on delete cascade,
+  last_viewed_at timestamptz not null default now(),
+  primary key (price_id, viewer_id)
+);
+
+create index if not exists price_views_recent_idx on public.price_views (last_viewed_at);
+alter table public.price_views enable row level security;
+
+create or replace function public.track_price_view(p_price_id bigint)
+returns integer
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_count integer;
+begin
+  if auth.uid() is null then raise exception 'Sign in to record price views'; end if;
+  if not exists (select 1 from public.prices where id = p_price_id) then
+    raise exception 'Price listing not found';
+  end if;
+
+  insert into public.price_views (price_id, viewer_id, last_viewed_at)
+  values (p_price_id, auth.uid(), now())
+  on conflict (price_id, viewer_id) do update set last_viewed_at = excluded.last_viewed_at;
+
+  delete from public.price_views where last_viewed_at < now() - interval '1 day';
+  select count(*)::integer into v_count
+  from public.price_views
+  where price_id = p_price_id and last_viewed_at >= now() - interval '15 minutes';
+  return v_count;
+end;
+$$;
+
 revoke all on public.prices, public.reports, public.profiles, public.seller_profiles,
   public.seller_posts, public.pending_reviews, public.price_history, public.markets,
-  public.alerts, public.conversations, public.messages, public.calls, public.price_verifications
+  public.alerts, public.conversations, public.messages, public.calls, public.price_verifications,
+  public.seasons, public.price_votes, public.price_views
   from anon, authenticated;
 grant select on public.prices, public.price_history to anon, authenticated;
 grant select on public.reports to authenticated;
 grant insert (name,country,city,market,item,unit,currency,price,photo_url) on public.reports to anon, authenticated;
-grant select (id,name,phone,store_name,whatsapp_number,show_whatsapp,group_link,role,market,data_saver,auto_download_vn,sync_only_wifi,notify_message,notify_call,notify_sound,notify_vibrate,do_not_disturb,timezone,push_player_id,last_seen,created_at) on public.profiles to authenticated;
+grant select (id,name,phone,store_name,whatsapp_number,show_whatsapp,group_link,role,market,data_saver,auto_download_vn,sync_only_wifi,notify_message,notify_call,notify_brief,notify_sound,notify_vibrate,do_not_disturb,timezone,push_player_id,last_seen,created_at) on public.profiles to authenticated;
 grant insert (id,name,phone,role,market,data_saver,auto_download_vn,notify_message,notify_call) on public.profiles to authenticated;
-grant update (name,phone,store_name,whatsapp_number,show_whatsapp,group_link,market,data_saver,auto_download_vn,sync_only_wifi,notify_message,notify_call,notify_sound,notify_vibrate,do_not_disturb,timezone,push_player_id,last_seen) on public.profiles to authenticated;
+grant update (name,phone,store_name,whatsapp_number,show_whatsapp,group_link,market,data_saver,auto_download_vn,sync_only_wifi,notify_message,notify_call,notify_brief,notify_sound,notify_vibrate,do_not_disturb,timezone,push_player_id,last_seen) on public.profiles to authenticated;
 grant select on public.public_profiles to authenticated;
 grant select on public.seller_public_profiles to anon, authenticated;
 grant select on public.seller_profiles to anon;
@@ -782,6 +920,13 @@ grant select, insert (seller_id,item,price,unit,market,city,country,currency,pho
 grant select on public.pending_reviews, public.conversations, public.messages, public.calls, public.alerts to authenticated;
 grant select on public.profiles, public.messages, public.calls to service_role;
 grant select on public.markets to anon, authenticated;
+grant insert (name,country,city,latitude,longitude) on public.markets to authenticated;
+grant update (latitude,longitude) on public.markets to authenticated;
+grant select on public.seasons, public.price_vote_totals to anon, authenticated;
+grant insert, update, delete on public.seasons to authenticated;
+grant select on public.price_votes to authenticated;
+grant execute on function public.track_price_view(bigint) to authenticated;
+grant execute on function public.cast_price_vote(bigint,text,text,date) to authenticated;
 grant insert (user_id,item,market,target_price,currency,contact) on public.alerts to anon, authenticated;
 grant update (enabled) on public.alerts to authenticated;
 grant insert (conversation_id,sender_id,receiver_id,message,message_type,audio_url,audio_size_bytes) on public.messages to authenticated;
@@ -801,6 +946,8 @@ revoke all on function public.auto_review_seller_post() from public, anon, authe
 revoke all on function public.queue_price_report() from public, anon, authenticated;
 revoke all on function public.update_conversation_preview() from public, anon, authenticated;
 revoke all on function public.add_call_system_message() from public, anon, authenticated;
+revoke all on function public.track_price_view(bigint) from public, anon;
+revoke all on function public.cast_price_vote(bigint,text,text,date) from public, anon;
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values

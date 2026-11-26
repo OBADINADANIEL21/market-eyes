@@ -133,9 +133,9 @@ export default function Search({ goTo }) {
     <div className="max-w-7xl mx-auto px-4 py-10">
       <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-2">{t("search.title")}</h1>
       {!mama && <p className="text-gray-500 mb-8">{t("search.subtitle")}</p>}
-      {dataSource !== "supabase" && (
+      {dataSource !== "supabase" && !loading && (
         <div role="status" className="mb-6 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          {t("prices.fallback")}
+          {dataError ? "Price listings could not be loaded. Check your connection and try again." : "No verified market prices are available yet. Estimates are not shown."}
         </div>
       )}
 
@@ -243,6 +243,7 @@ export default function Search({ goTo }) {
                 now={now}
                 rates={rates}
                 goTo={goTo}
+                prices={prices}
               />
             </div>
           );
@@ -259,17 +260,17 @@ export default function Search({ goTo }) {
             actionLabel={hasFilters ? t("search.clear") : undefined}
             onAction={clearFilters}
           />
-          {/\b(beans|plantain)\b/i.test(query) && (
+          {query.trim() && (
             <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950">
               <p className="font-semibold">
                 {lang === "pn"
-                  ? "We never get price wey we fit verify for Lagos yet. We no go guess am."
-                  : "We don't have a verified Lagos price for this item yet, and won't invent one."}
+                  ? "We never get verified price for this item yet. We no go guess am."
+                  : "We don't have a verified price for this item yet, and won't invent one."}
               </p>
               <p className="mt-1 text-sm">
                 {lang === "pn"
-                  ? "Price reports dey save for this device only; dem no be verified community prices."
-                  : "Price reports are currently saved on this device only; they are not independently verified or shared with other users."}
+                  ? "Community reports need review before dem show as approved prices."
+                  : "Community reports are reviewed before they appear as approved prices."}
               </p>
               <button
                 type="button"

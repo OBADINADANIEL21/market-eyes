@@ -45,9 +45,9 @@ export default function Compare({ goTo }) {
       <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-2">{t("compare.title")}</h1>
       {!mama && <p className="text-gray-500 mb-8">{t("compare.subtitle")}</p>}
       <button type="button" onClick={() => goTo?.("bulk")} className="mb-6 rounded-xl border border-brand px-4 py-2 font-bold text-brand">Bulk compare &amp; budget</button>
-      {dataSource !== "supabase" && (
+      {dataSource !== "supabase" && !loading && (
         <div role="status" className="mb-6 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          {t("prices.fallback")}
+          {dataError ? "Price listings could not be loaded. Check your connection and try again." : "No verified market prices are available yet. Estimates are not shown."}
         </div>
       )}
 
@@ -115,13 +115,7 @@ export default function Compare({ goTo }) {
                             : t("compare.above", { n: above })}
                       </span>
                       <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900">
-                        {entry.priceSource === "simulation"
-                          ? "SIMULATED · NOT A MARKET QUOTE"
-                          : entry.priceSource === "commodity-api"
-                            ? "COMMODITY BENCHMARK · NOT RETAIL"
-                            : entry.priceSource === "supabase"
-                              ? "SUPABASE LISTING"
-                            : "ESTIMATE · NOT VERIFIED"}
+                        Community listing · verify before purchase
                       </span>
                       {loading && <span className="text-xs text-gray-500">Loading exchange-rate data...</span>}
                     </div>
@@ -143,7 +137,7 @@ export default function Compare({ goTo }) {
                         })}
                       </div>
                     </div>
-                    {!mama && entry.priceSource === "community-verified" && (
+                    {!mama && entry.history?.length >= 2 && (
                       <div className="col-span-2 md:col-span-1">
                         <div className="text-xs text-gray-400 font-semibold mb-1">{t("compare.trend")}</div>
                         <TrendBadge trend={entry.trend} />

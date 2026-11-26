@@ -32,10 +32,20 @@ const fields = [
 ];
 
 const unique = (key) => [...new Set(prices.map((p) => p[key]))];
+const itemCategories = {
+  "Food & groceries": ["Rice", "Beans", "Garri", "Tomatoes", "Yam", "Plantain", "Pepper", "Onions", "Palm oil", "Cooking oil", "Eggs", "Bread", "Fish", "Chicken", "Beef", "Maize", "Cassava", "Milk", "Sugar", "Salt"],
+  "Farm inputs & livestock": ["Fertilizer", "Animal feed", "Seeds", "Pesticide", "Day-old chicks", "Goat", "Sheep", "Pig", "Cattle"],
+  "Home & personal care": ["Soap", "Detergent", "Toothpaste", "Tissue", "Cooking gas", "Kerosene", "Water", "Cleaning service"],
+  "Building & hardware": ["Cement", "Iron rod", "Roofing sheet", "Paint", "Sand", "Gravel", "Bricks", "Plumbing materials", "Electrical materials"],
+  "Electronics & appliances": ["Phone", "Television", "Refrigerator", "Generator", "Solar panel", "Fan", "Laptop", "Phone repair"],
+  "Clothing & household": ["Clothing", "Shoes", "School uniform", "Tailoring", "Furniture", "Mattress", "Curtains"],
+  "Transport & fuel": ["Petrol", "Diesel", "Transport fare", "Bus fare", "Motorcycle fare", "Vehicle repair", "Tyre"],
+  "Health & education": ["Clinic consultation", "Laboratory test", "Medicine", "School fees", "Books", "Tutoring"],
+  "Other services": ["Haircut", "Hairdressing", "Laundry", "Phone repair", "Mechanic service", "Plumbing service", "Electrical repair", "Internet service", "Rent"],
+};
 const reportItems = [
   ...unique("item"),
-  "Beans (1kg)",
-  "Plantain (1 bunch)",
+  ...Object.values(itemCategories).flat(),
 ];
 
 function getReportErrorMessage(error, t) {
@@ -80,10 +90,14 @@ function getReportErrorMessage(error, t) {
 export default function Report() {
   const { t, mama } = useSettings();
   const [form, setForm] = useState(emptyForm);
+  const [itemCategory, setItemCategory] = useState("");
   const [proofFile, setProofFile] = useState(null);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [readingBoard, setReadingBoard] = useState(false);
+  const [ocrText, setOcrText] = useState("");
+  const [ocrStatus, setOcrStatus] = useState("");
   // Saved on this device and restored after a reload
   const [reports, setReports] = useLocalStorage(STORAGE_KEY, []);
   const timer = useRef(null);
@@ -94,15 +108,57 @@ export default function Report() {
     () => ({
       "me-cities": unique("city"),
       "me-markets": unique("market"),
-      "me-items": reportItems,
+      "me-items": itemCategory ? itemCategories[itemCategory] ?? [] : reportItems,
     }),
-    []
+    [itemCategory]
   );
 
   // Clear the "thank you" timer if the page is left early
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const handleChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+
+  const readPriceBoard = async () => {
+    if (!proofFile) {
+      setOcrStatus("Take or choose a clear photo of the price board first.");
+      return;
+    }
+    setReadingBoard(true);
+    setOcrStatus("");
+    setOcrText("");
+    let worker;
+    try {
+      const { createWorker } = await import("tesseract.js");
+      worker = await createWorker("eng");
+      const { data } = await worker.recognize(proofFile);
+      const text = data.text.trim();
+      setOcrText(text);
+      const normalized = text.toLowerCase();
+      const itemMatch = reportItems.find((item) =>
+        normalized.includes(item.split(" (")[0].toLowerCase())
+      );
+      const currencyPrice = text.match(/(?:₦|NGN|NAIRA)\s*([\d,]+(?:\.\d{1,2})?)/i)?.[1];
+      const plainPrices = text.match(/\b\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\b\d{4,}(?:\.\d{1,2})?\b/g) ?? [];
+      const rawPrice = currencyPrice ?? (plainPrices.length === 1 ? plainPrices[0] : null);
+      const parsedPrice = rawPrice ? Number(rawPrice.replace(/,/g, "")) : null;
+      setForm((current) => ({
+        ...current,
+        ...(itemMatch ? { item: itemMatch } : {}),
+        ...(Number.isFinite(parsedPrice) && parsedPrice > 0 ? { price: String(parsedPrice) } : {}),
+      }));
+      setOcrStatus(
+        itemMatch || parsedPrice
+          ? "Possible item and price filled in. Check every field against the photo before submitting."
+          : "Text was read, but no clear item and price were found. Check the text and enter the details yourself."
+      );
+    } catch (error) {
+      console.error("Could not read the price-board photo:", error);
+      setOcrStatus("Could not read this photo. Try a clearer, well-lit picture.");
+    } finally {
+      if (worker) await worker.terminate();
+      setReadingBoard(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -200,6 +256,14 @@ export default function Report() {
         <div className="md:col-span-2 rounded-xl bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">
           {t("report.coverage")}
         </div>
+        <div className="md:col-span-2">
+          <label htmlFor="item-category" className="block text-sm font-semibold text-gray-700 mb-1">Category for suggestions</label>
+          <select id="item-category" value={itemCategory} onChange={(event) => setItemCategory(event.target.value)} className={inputCls}>
+            <option value="">All goods and services</option>
+            {Object.keys(itemCategories).map((category) => <option key={category} value={category}>{category}</option>)}
+          </select>
+          <p className="mt-1 text-xs text-gray-500">Suggestions are optional. Type any product or service name; prices come from community reports.</p>
+        </div>
         {fields.map(({ name, labelKey, placeholder, list, type }) => (
           <div key={name}>
             <label htmlFor={`f-${name}`} className="block text-sm font-semibold text-gray-700 mb-1">
@@ -220,9 +284,12 @@ export default function Report() {
             />
           </div>
         ))}
-        <label className="block text-sm font-semibold text-gray-700 md:col-span-2">
-          Photo proof (optional)
+        <div className="md:col-span-2">
+          <label htmlFor="price-board-photo" className="block text-sm font-semibold text-gray-700">
+            Snap price board or add photo proof (optional)
+          </label>
           <input
+            id="price-board-photo"
             type="file"
             accept="image/*"
             capture="environment"
@@ -230,7 +297,12 @@ export default function Report() {
             className={`${inputCls} mt-1`}
           />
           {proofFile && <span className="mt-1 block text-xs text-gray-500">{proofFile.name}</span>}
-        </label>
+          <button type="button" disabled={!proofFile || readingBoard} onClick={() => void readPriceBoard()} className="mt-2 rounded-xl border border-brand px-4 py-2 font-bold text-brand disabled:opacity-50">
+            {readingBoard ? "Reading photo…" : "Read price board"}
+          </button>
+          {ocrStatus && <span role="status" className="mt-2 block text-sm text-gray-700">{ocrStatus}</span>}
+          {ocrText && <details className="mt-2 text-sm"><summary className="cursor-pointer font-semibold">Review text detected in the photo</summary><pre className="mt-2 whitespace-pre-wrap rounded-lg bg-gray-50 p-3">{ocrText}</pre></details>}
+        </div>
 
         {/* Autocomplete suggestions built from the existing price data */}
         {Object.entries(suggestions).map(([id, values]) => (

@@ -4,7 +4,10 @@ import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
 import { currencySymbols, formatPrice, getItemEmoji } from "../data";
 import { normalizeHttpsUrl } from "../lib/whatsapp";
+import { createPriceCardImage } from "../lib/priceCardImage";
 import TrendBadge from "./TrendBadge";
+import PriceDebate from "./PriceDebate";
+import PriceCrowd from "./PriceCrowd";
 
 const PriceHistory = lazy(() => import("./PriceHistory"));
 
@@ -60,34 +63,74 @@ export default function PriceCard({
   loading = false,
   rates,
   goTo,
+  prices = [],
 }) {
   const { mama, t } = useSettings();
   const { user } = useAuth();
   const [verifyMessage, setVerifyMessage] = useState("");
   const [verifying, setVerifying] = useState(false);
+  const [sharingCard, setSharingCard] = useState(false);
+  const [cardMessage, setCardMessage] = useState("");
   const [quantity, setQuantity] = useState(1);
   const price = formatPrice(entry.price, entry.currency);
   const emoji = getItemEmoji(entry.item);
   const usdPrice = Number(entry.usdPrice ?? entry.price);
   const nairaPrice = usdPrice * (rates?.NGN ?? 1500);
-  const priceStatus =
-    entry.priceSource === "simulation"
-      ? "SIMULATED · NOT A MARKET QUOTE"
-      : entry.priceSource === "commodity-api"
-        ? "COMMODITY BENCHMARK · NOT RETAIL"
-        : entry.priceSource === "supabase"
-          ? "SUPABASE LISTING · VERIFY BEFORE BUYING"
-        : entry.priceSource === "estimate"
-          ? "ESTIMATE · NOT VERIFIED"
-          : "SAMPLE ESTIMATE · NOT VERIFIED";
-  const isVerified = entry.priceSource === "community-verified";
-  const trendLabel = isVerified
+  const priceStatus = "COMMUNITY LISTING · CONFIRM BEFORE BUYING";
+  const hasTrend = entry.history?.length >= 2;
+  const trendLabel = hasTrend
     ? entry.trend === "up"
       ? "↑"
       : entry.trend === "down"
         ? "↓"
         : "—"
     : "";
+
+  const sharePriceCard = async () => {
+    setSharingCard(true);
+    setCardMessage("");
+    try {
+      const blob = await createPriceCardImage(entry);
+      const file = new File([blob], "market-eye-price.png", { type: "image/png" });
+      if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+        await navigator.share({ files: [file], title: `${entry.item} price`, text: `${entry.item} at ${entry.market} · ${price}` });
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "market-eye-price.png";
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      const whatsappText = `Market Eye price: ${entry.item} at ${entry.market} — ${price}`;
+      window.open(`https://wa.me/?text=${encodeURIComponent(whatsappText)}`, "_blank", "noopener,noreferrer");
+      setCardMessage("Image downloaded. Attach it to the WhatsApp message.");
+    } catch (error) {
+      console.error("Could not share price card:", error);
+      setCardMessage("Could not create the image. Please try again.");
+    } finally {
+      setSharingCard(false);
+    }
+  };
+
+  const downloadPriceCard = async () => {
+    setSharingCard(true);
+    setCardMessage("");
+    try {
+      const blob = await createPriceCardImage(entry);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "market-eye-price.png";
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      console.error("Could not download price card:", error);
+      setCardMessage("Could not create the image. Please try again.");
+    } finally {
+      setSharingCard(false);
+    }
+  };
 
   // ----- Mama Mode: emoji + price only -----
   if (mama) {
@@ -142,7 +185,7 @@ export default function PriceCard({
           <span aria-hidden="true">{emoji}</span>
           {entry.item}{entry.unit && <span className="text-sm font-medium text-gray-500">· {entry.unit}</span>}
         </h3>
-        {isVerified && <TrendBadge trend={entry.trend} />}
+        {hasTrend && <TrendBadge trend={entry.trend} />}
       </div>
 
       <div className="text-2xl md:text-3xl font-extrabold text-brand">
@@ -157,7 +200,7 @@ export default function PriceCard({
             maximumFractionDigits: 0,
           })}
         </span>
-        {isVerified && (
+        {hasTrend && (
           <span className={entry.trend === "down" ? "text-red-600" : "text-green-700"}>
             {trendLabel}
           </span>
@@ -179,13 +222,22 @@ export default function PriceCard({
       <div className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
         Not independently verified. Confirm the price with the market before relying on it.
       </div>
-      {showChart && entry.historySource === "verified" && entry.history?.length >= 2 && (
+      {showChart && entry.historySource === "recorded" && entry.history?.length >= 2 && (
         <Suspense fallback={<div className="mt-4 h-40 animate-pulse rounded-xl bg-gray-100" />}>
           <PriceHistory history={entry.history} historyDates={entry.historyDates} currency={entry.currency} />
         </Suspense>
       )}
       {entry.photoUrl && <a href={entry.photoUrl} target="_blank" rel="noreferrer" className="mt-3 block"><img src={entry.photoUrl} alt={`Price proof for ${entry.item}`} loading="lazy" width="200" height="150" className="h-32 w-full rounded-xl object-cover" /><span className="text-xs text-brand underline">Open photo proof</span></a>}
       {entry.priceSource === "supabase" && entry.reportCount > 0 && <p className="mt-2 text-xs font-semibold text-gray-600">Trust score: {Math.min(100, Math.round((entry.verifiedCount / entry.reportCount) * 100))}% · {entry.reportCount} approved report{entry.reportCount === 1 ? "" : "s"}</p>}
+      {entry.priceSource === "supabase" && showChart && <>
+        <PriceCrowd priceId={entry.id} enabled={Boolean(user)} />
+        <PriceDebate entry={entry} prices={prices} />
+      </>}
+      {entry.priceSource === "supabase" && <div className="mt-3 flex flex-wrap gap-2">
+        <button type="button" disabled={sharingCard} onClick={() => void downloadPriceCard()} className="rounded-lg border px-3 py-2 text-sm font-bold disabled:opacity-50">{sharingCard ? "Preparing…" : "Download price card"}</button>
+        <button type="button" disabled={sharingCard} onClick={() => void sharePriceCard()} className="rounded-lg bg-green-700 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">Share price card</button>
+      </div>}
+      {cardMessage && <p role="status" className="mt-2 text-xs text-gray-600">{cardMessage}</p>}
       {entry.priceSource === "supabase" && showChart && <div className="mt-4 rounded-xl bg-gray-50 p-3">
         <label className="flex items-center gap-3 text-sm font-semibold">Quantity ({entry.unit || "units"})
           <div className="ml-auto flex items-center gap-2">
