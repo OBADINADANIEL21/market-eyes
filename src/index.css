@@ -170,3 +170,31 @@
     scroll-behavior: auto !important;
   }
 }
+@page {
+  size: A4;
+  margin: 12mm;
+}
+
+.market-print-board {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  .market-print-board,
+  .market-print-board * {
+    visibility: visible !important;
+  }
+
+  .market-print-board {
+    display: block !important;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    background: white;
+    color: black;
+  }
+}

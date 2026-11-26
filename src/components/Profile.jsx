@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
 import { listQueuedItems } from "../lib/offlineQueue";
+import { normalizeHttpsUrl, normalizeNigerianWhatsApp } from "../lib/whatsapp";
 
 const initialSettings = { data_saver: true, auto_download_vn: false, sync_only_wifi: false, notify_message: true, notify_call: true, notify_sound: true, notify_vibrate: true, do_not_disturb: false };
 
@@ -63,9 +64,20 @@ export default function Profile({ goTo }) {
   const [noticeType, setNoticeType] = useState("success");
   const [queueLength, setQueueLength] = useState(listQueuedItems().length);
   const [pushLoading, setPushLoading] = useState(false);
+  const [storeBusy, setStoreBusy] = useState(false);
+  const [editingStore, setEditingStore] = useState(false);
+  const [storeForm, setStoreForm] = useState({ store_name: "", whatsapp_number: "", show_whatsapp: true, group_link: "" });
 
   useEffect(() => {
     if (profile) setSettings((current) => ({ ...current, ...profile }));
+  }, [profile]);
+  useEffect(() => {
+    if (profile) setStoreForm({
+      store_name: profile.store_name ?? "",
+      whatsapp_number: profile.whatsapp_number ?? "",
+      show_whatsapp: profile.show_whatsapp ?? true,
+      group_link: profile.group_link ?? "",
+    });
   }, [profile]);
   useEffect(() => {
     const update = () => setQueueLength(listQueuedItems().length);
@@ -87,6 +99,49 @@ export default function Profile({ goTo }) {
     } else {
       await refreshProfile();
       setNotice("Settings saved.");
+    }
+  };
+
+  const saveStore = async (event) => {
+    event.preventDefault();
+    const storeName = storeForm.store_name.trim();
+    const whatsappNumber = normalizeNigerianWhatsApp(storeForm.whatsapp_number);
+    const groupLink = normalizeHttpsUrl(storeForm.group_link);
+    if (!storeName) {
+      setNotice("Enter your store name.");
+      setNoticeType("error");
+      return;
+    }
+    if (!whatsappNumber) {
+      setNotice("Enter a WhatsApp number beginning with +234 and followed by 10 digits.");
+      setNoticeType("error");
+      return;
+    }
+    if (groupLink === null) {
+      setNotice("Enter a secure group link beginning with https://.");
+      setNoticeType("error");
+      return;
+    }
+    setStoreBusy(true);
+    setNotice("");
+    try {
+      const { error } = await supabase.from("profiles").update({
+        store_name: storeName,
+        whatsapp_number: whatsappNumber,
+        show_whatsapp: storeForm.show_whatsapp,
+        group_link: groupLink,
+      }).eq("id", user.id);
+      if (error) throw error;
+      await refreshProfile();
+      setEditingStore(false);
+      setNotice("Store details saved.");
+      setNoticeType("success");
+    } catch (error) {
+      console.error("Could not save seller store details:", error);
+      setNotice("Could not save store details. Please try again.");
+      setNoticeType("error");
+    } finally {
+      setStoreBusy(false);
     }
   };
 
@@ -156,6 +211,23 @@ export default function Profile({ goTo }) {
         <div className="text-gray-500">{profile?.role || "Buyer"}{profile?.market ? ` · ${profile.market}` : ""}</div>
         {profile?.phone && <div className="text-sm text-gray-500">{profile.phone}</div>}
       </section>
+      {profile?.role === "seller" && <section className="mb-5 rounded-2xl bg-white p-5 shadow">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-extrabold">{profile.store_name || "Your store"}</h2>
+            <p className="mt-1 text-sm text-gray-600">WhatsApp: {profile.whatsapp_number || "Not set"}</p>
+            <p className="mt-1 text-sm text-gray-600">These details appear with your approved price listings.</p>
+          </div>
+          <button type="button" onClick={() => setEditingStore((current) => !current)} className="rounded-xl border px-4 py-2 font-semibold">{editingStore ? "Cancel" : "Edit Store"}</button>
+        </div>
+        {editingStore && <form onSubmit={saveStore} className="mt-4 grid gap-4 sm:grid-cols-2">
+          <label className="text-sm font-semibold">Store name<input required value={storeForm.store_name} onChange={(event) => setStoreForm((current) => ({ ...current, store_name: event.target.value }))} className="mt-1 w-full rounded-xl border-2 border-gray-200 px-4 py-3" placeholder="e.g. Mama Nkechi Stores" /></label>
+          <label className="text-sm font-semibold">WhatsApp number<input required type="tel" value={storeForm.whatsapp_number} onChange={(event) => setStoreForm((current) => ({ ...current, whatsapp_number: event.target.value }))} className="mt-1 w-full rounded-xl border-2 border-gray-200 px-4 py-3" placeholder="+234 801 234 5678" /></label>
+          <label className="text-sm font-semibold sm:col-span-2">WhatsApp group link (optional)<input type="url" value={storeForm.group_link} onChange={(event) => setStoreForm((current) => ({ ...current, group_link: event.target.value }))} className="mt-1 w-full rounded-xl border-2 border-gray-200 px-4 py-3" placeholder="https://chat.whatsapp.com/..." /></label>
+          <label className="flex items-center gap-3 text-sm font-semibold sm:col-span-2"><input type="checkbox" checked={storeForm.show_whatsapp} onChange={(event) => setStoreForm((current) => ({ ...current, show_whatsapp: event.target.checked }))} className="h-5 w-5 accent-emerald-700" />Show my WhatsApp contact on my price listings</label>
+          <button disabled={storeBusy} className="rounded-xl bg-brand px-5 py-3 font-bold text-white disabled:opacity-60 sm:col-span-2">{storeBusy ? "Saving…" : "Save store details"}</button>
+        </form>}
+      </section>}
       <section className="rounded-2xl bg-white p-5 shadow">
         <h2 className="mb-3 text-xl font-bold">Privacy and data</h2>
         <div className="divide-y">{toggles.map(([name, label]) => <label key={name} className="flex min-h-14 items-center justify-between gap-4 py-3"><span>{label}</span><input type="checkbox" name={name} checked={Boolean(settings[name])} onChange={saveSettings} className="h-5 w-5 accent-emerald-700" /></label>)}</div>

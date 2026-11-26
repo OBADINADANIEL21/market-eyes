@@ -17,7 +17,7 @@ export function AuthProvider({ children }) {
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("id,name,phone,role,market,data_saver,auto_download_vn,sync_only_wifi,notify_message,notify_call,notify_sound,notify_vibrate,do_not_disturb,timezone,push_player_id,last_seen")
+      .select("id,name,phone,store_name,whatsapp_number,show_whatsapp,group_link,role,market,data_saver,auto_download_vn,sync_only_wifi,notify_message,notify_call,notify_sound,notify_vibrate,do_not_disturb,timezone,push_player_id,last_seen")
       .eq("id", user.id)
       .maybeSingle();
     if (error) {

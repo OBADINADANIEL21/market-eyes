@@ -157,6 +157,7 @@ function makeSupabasePrices(rows, rates, histories = []) {
       .map((entry) => ({ price: Number(entry.price), date: entry.captured_at }))
       .filter((entry) => Number.isFinite(entry.price) && entry.price > 0)
       .sort((a, b) => new Date(a.date) - new Date(b.date));
+    const sellerProfile = row.sellerProfile;
     return [{
       id: String(row.id ?? `supabase-price-${index}`),
       item,
@@ -170,6 +171,12 @@ function makeSupabasePrices(rows, rates, histories = []) {
       verifiedCount: Number(row.verified_count ?? row.report_count ?? 0),
       reportCount: Number(row.report_count ?? 0),
       sellerId: row.seller_id ?? null,
+      storeName: sellerProfile?.store_name ?? null,
+      sellerMarket: sellerProfile?.market ?? null,
+      sellerVerified: Boolean(sellerProfile?.verified),
+      whatsappNumber: sellerProfile?.whatsapp_number ?? null,
+      showWhatsapp: sellerProfile?.show_whatsapp ?? false,
+      groupLink: sellerProfile?.group_link ?? null,
       photoUrl: row.photo_url ?? null,
       verifiedToday: 0,
       usdPrice,
@@ -203,7 +210,23 @@ async function fetchSupabasePrices(from = 0) {
     .gte("captured_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
     .order("captured_at", { ascending: true });
   if (historyError) console.warn("Price history is unavailable until the database migration is applied:", historyError);
-  return { rows, history: history ?? [], error: null };
+  const sellerIds = [...new Set(rows.map((row) => row.seller_id).filter(Boolean))];
+  let sellerProfiles = [];
+  if (sellerIds.length) {
+    const { data: profileRows, error: sellerProfileError } = await supabase
+      .from("seller_public_profiles")
+      .select("id,store_name,market,verified,show_whatsapp,whatsapp_number,group_link")
+      .in("id", sellerIds);
+    if (sellerProfileError) {
+      console.warn("Seller contact details are unavailable:", sellerProfileError);
+    } else sellerProfiles = profileRows ?? [];
+  }
+  const sellerProfileById = Object.fromEntries(sellerProfiles.map((profile) => [profile.id, profile]));
+  const enrichedRows = rows.map((row) => ({
+    ...row,
+    sellerProfile: sellerProfileById[row.seller_id] ?? null,
+  }));
+  return { rows: enrichedRows, history: history ?? [], error: null };
 }
 
 function getCachedPrices() {

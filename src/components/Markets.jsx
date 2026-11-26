@@ -27,6 +27,14 @@ export default function Markets() {
     });
     return [...groups.entries()];
   }, [filtered]);
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const printListings = filtered.filter((entry) =>
+    entry.priceSource === "supabase" &&
+    entry.createdAt &&
+    new Date(entry.createdAt) >= todayStart &&
+    new Date(entry.createdAt) <= new Date()
+  );
 
   const trueCosts = useMemo(() => {
     const fareNgn = Number(transport.fare);
@@ -71,8 +79,12 @@ export default function Markets() {
     <div className="mx-auto max-w-7xl px-4 py-8">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div><h1 className="text-3xl font-extrabold">Markets</h1><p className="mt-1 text-gray-500">Compare available listings and estimate your transport-inclusive cost.</p></div>
-        <button onClick={() => setAlertOpen(true)} className="rounded-xl bg-brand px-4 py-3 font-bold text-white">Set Price Alert</button>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => window.print()} disabled={!printListings.length} className="rounded-xl border px-4 py-3 font-bold disabled:opacity-50">Print Today Prices</button>
+          <button onClick={() => setAlertOpen(true)} className="rounded-xl bg-brand px-4 py-3 font-bold text-white">Set Price Alert</button>
+        </div>
       </header>
+      {!printListings.length && <p className="mb-4 text-sm text-gray-500">No approved price listings from today are available to print.</p>}
       {notice && <p role="status" className="mb-4 rounded-xl bg-emerald-50 p-3 text-emerald-900">{notice}</p>}
 
       <div className="mb-5 flex flex-wrap gap-2" role="tablist" aria-label="Market listings">
@@ -96,6 +108,17 @@ export default function Markets() {
       </div>
       {hasMore && <button disabled={loadingMore} onClick={() => void loadMore()} className="my-5 rounded-xl border px-5 py-3 font-bold">{loadingMore ? "Loading…" : "Load more prices"}</button>}
       {!filtered.length && !loading && <p className="rounded-xl bg-white p-5 text-gray-600">No matching price listings yet.</p>}
+
+      <section className="market-print-board" aria-hidden="true">
+        <h1 className="text-2xl font-extrabold">MARKET EYE · Today’s Price Board</h1>
+        <p className="mb-5 text-sm">Nigeria · {new Date().toLocaleDateString()}</p>
+        <table className="w-full border-collapse text-left">
+          <thead><tr><th className="border p-2">Item</th><th className="border p-2">Market</th><th className="border p-2">City</th><th className="border p-2">Price</th><th className="border p-2">Unit</th></tr></thead>
+          <tbody>{printListings.map((entry) => <tr key={entry.id}>
+            <td className="border p-2">{entry.item}</td><td className="border p-2">{entry.market}</td><td className="border p-2">{entry.city}</td><td className="border p-2">{formatPrice(entry.price, entry.currency)}</td><td className="border p-2">{entry.unit || "—"}</td>
+          </tr>)}</tbody>
+        </table>
+      </section>
 
       <section className="mt-10 rounded-3xl bg-white p-5 shadow">
         <h2 className="text-2xl font-extrabold">Transport cost calculator</h2>

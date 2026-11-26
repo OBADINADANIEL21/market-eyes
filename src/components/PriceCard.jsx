@@ -3,9 +3,49 @@ import { useSettings } from "../context/SettingsContext";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
 import { currencySymbols, formatPrice, getItemEmoji } from "../data";
+import { normalizeHttpsUrl } from "../lib/whatsapp";
 import TrendBadge from "./TrendBadge";
 
 const PriceHistory = lazy(() => import("./PriceHistory"));
+
+function updatedLabel(createdAt) {
+  const timestamp = new Date(createdAt ?? "").getTime();
+  if (!Number.isFinite(timestamp)) return null;
+  const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60_000));
+  if (minutes < 1) return "Updated just now";
+  if (minutes < 60) return `Updated ${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `Updated ${hours} hr ago`;
+  return `Updated ${Math.floor(hours / 24)} day${hours >= 48 ? "s" : ""} ago`;
+}
+
+function SellerHeader({ entry }) {
+  if (!entry.storeName) return null;
+  return (
+    <div className="mb-3">
+      <div className="font-bold text-gray-900">
+        {entry.storeName}
+        {entry.sellerVerified && <span className="ml-1 text-blue-600" aria-label="Verified seller">✓ Verified</span>}
+      </div>
+      <div className="text-sm text-gray-500">{entry.sellerMarket || entry.market}</div>
+    </div>
+  );
+}
+
+function SellerActions({ entry }) {
+  if (!entry.sellerId || !entry.storeName) return null;
+  const phoneDigits = entry.showWhatsapp ? entry.whatsappNumber?.replace(/\D/g, "") : "";
+  const groupLink = normalizeHttpsUrl(entry.groupLink ?? "");
+  const whatsappText = `Hello ${entry.storeName}, I saw ${entry.item} for ${currencySymbols[entry.currency] ?? ""}${entry.price.toLocaleString()} on Market Eye, e still correct?`;
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-2">
+      {phoneDigits ? (
+        <a href={`https://wa.me/${phoneDigits}?text=${encodeURIComponent(whatsappText)}`} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-green-600 px-3 py-2 text-sm font-bold text-white">💬 WhatsApp Store</a>
+      ) : <span className="text-sm font-semibold text-gray-500">WhatsApp Hidden</span>}
+      {groupLink && <a href={groupLink} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-brand px-3 py-2 text-sm font-bold text-brand">👥 Group</a>}
+    </div>
+  );
+}
 
 /**
  * One price entry. Used on Home (featured) and Search.
@@ -25,6 +65,7 @@ export default function PriceCard({
   const { user } = useAuth();
   const [verifyMessage, setVerifyMessage] = useState("");
   const [verifying, setVerifying] = useState(false);
+  const [quantity, setQuantity] = useState(1);
   const price = formatPrice(entry.price, entry.currency);
   const emoji = getItemEmoji(entry.item);
   const usdPrice = Number(entry.usdPrice ?? entry.price);
@@ -52,28 +93,32 @@ export default function PriceCard({
   if (mama) {
     return (
       <article
-        className={`price-card bg-white rounded-3xl shadow-lg p-5 flex items-center justify-between gap-4 border-l-8 ${
+        className={`price-card bg-white rounded-3xl shadow-lg p-5 border-l-8 ${
           isCheat ? "border-red-500" : "border-brand"
         }`}
       >
-        <span className="text-6xl leading-none" role="img" aria-label={entry.item}>
-          {emoji}
-        </span>
-        <span className="text-right font-extrabold text-brand">
-          {price}
-          <span className="block text-xs font-semibold text-gray-500">
-            ${usdPrice.toFixed(2)} · {currencySymbols.NGN}{" "}
-            {nairaPrice.toLocaleString("en-NG", {
-              maximumFractionDigits: 0,
-            })}
+        <SellerHeader entry={entry} />
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-6xl leading-none" role="img" aria-label={entry.item}>
+            {emoji}
           </span>
-          <span className="block text-xs font-semibold text-gray-500">{priceStatus}</span>
-          {isCheat && (
-            <span className="block text-red-500" role="img" aria-label={t("card.cheat")}>
-              ⚠️
+          <span className="text-right font-extrabold text-brand">
+            {price}
+            <span className="block text-xs font-semibold text-gray-500">
+              ${usdPrice.toFixed(2)} · {currencySymbols.NGN}{" "}
+              {nairaPrice.toLocaleString("en-NG", {
+                maximumFractionDigits: 0,
+              })}
             </span>
-          )}
-        </span>
+            <span className="block text-xs font-semibold text-gray-500">{priceStatus}</span>
+            {isCheat && (
+              <span className="block text-red-500" role="img" aria-label={t("card.cheat")}>
+                ⚠️
+              </span>
+            )}
+          </span>
+        </div>
+        <SellerActions entry={entry} />
       </article>
     );
   }
@@ -85,6 +130,7 @@ export default function PriceCard({
         isCheat ? "border-red-500" : "border-brand"
       }`}
     >
+      <SellerHeader entry={entry} />
       {isCheat && (
         <div className="bg-red-500 text-white text-xs font-bold px-3 py-2 rounded-xl mb-3">
           {t("card.cheat")}
@@ -94,7 +140,7 @@ export default function PriceCard({
       <div className="flex justify-between items-start gap-3 mb-2">
         <h3 className="font-bold text-lg text-gray-900 flex items-center gap-2">
           <span aria-hidden="true">{emoji}</span>
-          {entry.item}
+          {entry.item}{entry.unit && <span className="text-sm font-medium text-gray-500">· {entry.unit}</span>}
         </h3>
         {isVerified && <TrendBadge trend={entry.trend} />}
       </div>
@@ -127,6 +173,8 @@ export default function PriceCard({
       <div className="text-sm text-gray-500">
         {entry.city}, {entry.country}
       </div>
+      {updatedLabel(entry.createdAt) && <div className="mt-1 text-xs text-gray-500">{updatedLabel(entry.createdAt)}</div>}
+      {entry.priceSource === "supabase" && <div className="mt-1 text-xs font-semibold text-gray-600">Confirm count: {entry.verifiedCount}</div>}
 
       <div className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
         Not independently verified. Confirm the price with the market before relying on it.
@@ -138,6 +186,17 @@ export default function PriceCard({
       )}
       {entry.photoUrl && <a href={entry.photoUrl} target="_blank" rel="noreferrer" className="mt-3 block"><img src={entry.photoUrl} alt={`Price proof for ${entry.item}`} loading="lazy" width="200" height="150" className="h-32 w-full rounded-xl object-cover" /><span className="text-xs text-brand underline">Open photo proof</span></a>}
       {entry.priceSource === "supabase" && entry.reportCount > 0 && <p className="mt-2 text-xs font-semibold text-gray-600">Trust score: {Math.min(100, Math.round((entry.verifiedCount / entry.reportCount) * 100))}% · {entry.reportCount} approved report{entry.reportCount === 1 ? "" : "s"}</p>}
+      {entry.priceSource === "supabase" && showChart && <div className="mt-4 rounded-xl bg-gray-50 p-3">
+        <label className="flex items-center gap-3 text-sm font-semibold">Quantity ({entry.unit || "units"})
+          <div className="ml-auto flex items-center gap-2">
+            <button type="button" aria-label="Decrease quantity" onClick={() => setQuantity((current) => Math.max(1, current - 1))} className="h-9 w-9 rounded-lg border bg-white text-lg">−</button>
+            <input type="number" min="1" step="1" value={quantity} onChange={(event) => setQuantity(Math.max(1, Math.floor(Number(event.target.value) || 1)))} className="w-16 rounded-lg border px-2 py-2 text-center" aria-label="Quantity" />
+            <button type="button" aria-label="Increase quantity" onClick={() => setQuantity((current) => current + 1)} className="h-9 w-9 rounded-lg border bg-white text-lg">+</button>
+          </div>
+        </label>
+        <p className="mt-2 text-sm">Estimated total: <strong>{formatPrice(entry.price * quantity, entry.currency)}</strong></p>
+      </div>}
+      <SellerActions entry={entry} />
       {user && entry.sellerId && entry.sellerId !== user.id && entry.priceSource === "supabase" && <div className="mt-3 flex flex-wrap gap-2">
         <button disabled={verifying} onClick={async () => {
           setVerifying(true);

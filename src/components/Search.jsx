@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { itemEmoji } from "../data";
+import { useAuth } from "../context/AuthContext";
 import { useSettings } from "../context/SettingsContext";
 import { useLivePrices } from "../hooks/useLivePrices";
 import PriceCard from "./PriceCard";
@@ -9,10 +10,13 @@ const selectCls =
   "w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-brand focus:outline-none font-medium bg-white";
 
 export default function Search({ goTo }) {
+  const { profile } = useAuth();
   const { t, mama, lang } = useSettings();
   const { prices, rates, loading, loadingMore, hasMore, loadMore, lastUpdated, now, dataSource, dataError } = useLivePrices();
   const [city, setCity] = useState("");
   const [query, setQuery] = useState("");
+  const [storeQuery, setStoreQuery] = useState("");
+  const [storeFilterMode, setStoreFilterMode] = useState("all");
   const [listingMode, setListingMode] = useState("all");
   const [marketFilter, setMarketFilter] = useState("");
   const [voiceStatus, setVoiceStatus] = useState("");
@@ -92,11 +96,14 @@ export default function Search({ goTo }) {
     const q = query.toLowerCase();
     return prices.filter((p) => {
       const matchCity = !city || p.city === city;
-      const matchQuery = !q || p.item.toLowerCase().includes(q) || p.market.toLowerCase().includes(q);
+      const matchQuery = !q || p.item.toLowerCase().includes(q) || p.market.toLowerCase().includes(q) || p.storeName?.toLowerCase().includes(q);
       const matchMarket = listingMode !== "market" || !marketFilter || p.market === marketFilter;
-      return matchCity && matchQuery && matchMarket;
+      const matchStore = !storeQuery || p.storeName?.toLowerCase().includes(storeQuery.toLowerCase());
+      const myMarket = profile?.market?.trim().toLowerCase();
+      const matchMyMarket = storeFilterMode !== "my-market" || Boolean(myMarket && (p.sellerMarket || p.market).trim().toLowerCase() === myMarket);
+      return matchCity && matchQuery && matchMarket && matchStore && matchMyMarket;
     });
-  }, [city, query, listingMode, marketFilter, prices]);
+  }, [city, query, storeQuery, storeFilterMode, profile?.market, listingMode, marketFilter, prices]);
 
   // Average per item+city — a price >20% above it gets a cheat alert
   const averages = useMemo(() => {
@@ -112,10 +119,12 @@ export default function Search({ goTo }) {
     return avg;
   }, [prices]);
 
-  const hasFilters = Boolean(city || query || marketFilter);
+  const hasFilters = Boolean(city || query || storeQuery || marketFilter || storeFilterMode === "my-market");
   const clearFilters = () => {
     setCity("");
     setQuery("");
+    setStoreQuery("");
+    setStoreFilterMode("all");
     setMarketFilter("");
     setListingMode("all");
   };
@@ -133,6 +142,10 @@ export default function Search({ goTo }) {
       {/* Filters */}
       <div className="mb-4 flex gap-2" role="tablist" aria-label="Price search mode">
         {[["all", "All Items"], ["market", "By Market"]].map(([value, label]) => <button key={value} role="tab" aria-selected={listingMode === value} onClick={() => setListingMode(value)} className={`rounded-full px-4 py-2 font-semibold ${listingMode === value ? "bg-brand text-white" : "bg-white text-gray-700"}`}>{label}</button>)}
+      </div>
+      <div className="mb-4 flex gap-2" role="group" aria-label="Store filter">
+        <button type="button" aria-pressed={storeFilterMode === "all"} onClick={() => setStoreFilterMode("all")} className={`rounded-full px-4 py-2 font-semibold ${storeFilterMode === "all" ? "bg-brand text-white" : "bg-white text-gray-700"}`}>All Stores</button>
+        <button type="button" aria-pressed={storeFilterMode === "my-market"} disabled={!profile?.market} onClick={() => setStoreFilterMode("my-market")} className={`rounded-full px-4 py-2 font-semibold disabled:opacity-50 ${storeFilterMode === "my-market" ? "bg-brand text-white" : "bg-white text-gray-700"}`}>My Market</button>
       </div>
       <div className="bg-white rounded-2xl shadow-lg p-5 mb-6 grid md:grid-cols-3 gap-4">
         {listingMode === "market" && <div>
@@ -180,6 +193,10 @@ export default function Search({ goTo }) {
               {voiceStatus}
             </p>
           )}
+        </div>
+        <div className="md:col-span-3">
+          <label className="block text-sm font-semibold text-gray-700 mb-1">Search by store name</label>
+          <input type="search" value={storeQuery} onChange={(event) => setStoreQuery(event.target.value)} placeholder="e.g. Mama Nkechi Stores" className={selectCls} />
         </div>
       </div>
 

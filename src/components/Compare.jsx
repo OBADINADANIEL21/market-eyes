@@ -12,7 +12,7 @@ const tones = {
   middle: { border: "border-gray-200", bar: "bg-amber-400", badge: "bg-amber-100 text-amber-800" },
 };
 
-export default function Compare() {
+export default function Compare({ goTo }) {
   const { t, mama } = useSettings();
   const { prices, rates, loading, dataSource, dataError } = useLivePrices();
   const compareCities = useMemo(() => [...new Set(prices.map((p) => p.city))], [prices]);
@@ -44,6 +44,7 @@ export default function Compare() {
     <div className="max-w-5xl mx-auto px-4 py-10">
       <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-2">{t("compare.title")}</h1>
       {!mama && <p className="text-gray-500 mb-8">{t("compare.subtitle")}</p>}
+      <button type="button" onClick={() => goTo?.("bulk")} className="mb-6 rounded-xl border border-brand px-4 py-2 font-bold text-brand">Bulk compare &amp; budget</button>
       {dataSource !== "supabase" && (
         <div role="status" className="mb-6 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           {t("prices.fallback")}

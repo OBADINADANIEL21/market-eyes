@@ -135,6 +135,10 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   name text not null,
   phone text not null default '',
+  store_name text not null default '',
+  whatsapp_number text not null default '',
+  show_whatsapp boolean not null default true,
+  group_link text not null default '',
   role text not null default 'buyer' check (role in ('buyer', 'seller', 'moderator', 'admin')),
   market text not null default '',
   data_saver boolean not null default true,
@@ -151,6 +155,12 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now()
 );
 
+alter table public.profiles
+  add column if not exists store_name text not null default '',
+  add column if not exists whatsapp_number text not null default '',
+  add column if not exists show_whatsapp boolean not null default true,
+  add column if not exists group_link text not null default '';
+
 create table if not exists public.seller_profiles (
   id uuid primary key references public.profiles(id) on delete cascade,
   shop_name text not null,
@@ -161,18 +171,30 @@ create table if not exists public.seller_profiles (
   created_at timestamptz not null default now()
 );
 
-insert into public.profiles (id, name, phone, role, market)
+insert into public.profiles (id, name, phone, role, market, store_name, whatsapp_number, group_link)
 select
   u.id,
   coalesce(nullif(trim(u.raw_user_meta_data ->> 'name'), ''), split_part(u.email, '@', 1)),
   coalesce(u.raw_user_meta_data ->> 'phone', ''),
   case when u.raw_user_meta_data ->> 'role' = 'seller' then 'seller' else 'buyer' end,
-  coalesce(u.raw_user_meta_data ->> 'market', '')
+  coalesce(u.raw_user_meta_data ->> 'market', ''),
+  coalesce(nullif(trim(u.raw_user_meta_data ->> 'store_name'), ''), nullif(trim(u.raw_user_meta_data ->> 'name'), ''), split_part(u.email, '@', 1)),
+  coalesce(u.raw_user_meta_data ->> 'whatsapp_number', ''),
+  coalesce(u.raw_user_meta_data ->> 'group_link', '')
 from auth.users u
 on conflict (id) do nothing;
 
+update public.profiles p
+set store_name = coalesce(nullif(trim(p.store_name), ''), nullif(trim(sp.shop_name), ''), p.name)
+from public.seller_profiles sp
+where sp.id = p.id and p.role = 'seller';
+
+update public.profiles
+set store_name = name
+where role = 'seller' and nullif(trim(store_name), '') is null;
+
 insert into public.seller_profiles (id, shop_name, market)
-select p.id, p.name, p.market
+select p.id, coalesce(nullif(trim(p.store_name), ''), p.name), p.market
 from public.profiles p
 where p.role = 'seller'
 on conflict (id) do nothing;
@@ -296,17 +318,23 @@ declare
   v_name text;
   v_phone text;
   v_market text;
+  v_store_name text;
+  v_whatsapp_number text;
+  v_group_link text;
 begin
   v_role := case when new.raw_user_meta_data ->> 'role' = 'seller' then 'seller' else 'buyer' end;
   v_name := coalesce(nullif(trim(new.raw_user_meta_data ->> 'name'), ''), split_part(new.email, '@', 1));
   v_phone := coalesce(new.raw_user_meta_data ->> 'phone', '');
   v_market := coalesce(new.raw_user_meta_data ->> 'market', '');
-  insert into public.profiles (id, name, phone, role, market)
-  values (new.id, v_name, v_phone, v_role, v_market)
+  v_store_name := coalesce(nullif(trim(new.raw_user_meta_data ->> 'store_name'), ''), v_name);
+  v_whatsapp_number := coalesce(new.raw_user_meta_data ->> 'whatsapp_number', '');
+  v_group_link := coalesce(new.raw_user_meta_data ->> 'group_link', '');
+  insert into public.profiles (id, name, phone, role, market, store_name, whatsapp_number, group_link)
+  values (new.id, v_name, v_phone, v_role, v_market, v_store_name, v_whatsapp_number, v_group_link)
   on conflict (id) do nothing;
   if v_role = 'seller' then
     insert into public.seller_profiles (id, shop_name, market)
-    values (new.id, v_name, v_market)
+    values (new.id, v_store_name, v_market)
     on conflict (id) do nothing;
   end if;
   return new;
@@ -317,6 +345,28 @@ drop trigger if exists auth_user_created_market_eye_profile on auth.users;
 create trigger auth_user_created_market_eye_profile
 after insert on auth.users
 for each row execute function public.create_market_eye_profile();
+
+create or replace function public.sync_market_eye_seller_profile()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if new.role = 'seller' then
+    update public.seller_profiles
+    set shop_name = coalesce(nullif(trim(new.store_name), ''), new.name),
+        market = new.market
+    where id = new.id;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_sync_seller_store on public.profiles;
+create trigger profiles_sync_seller_store
+after update of name, role, market, store_name on public.profiles
+for each row execute function public.sync_market_eye_seller_profile();
 
 create or replace function public.count_seller_posts()
 returns trigger
@@ -346,6 +396,19 @@ create index if not exists calls_receiver_status_idx on public.calls (receiver_i
 create or replace view public.public_profiles with (security_barrier = true) as
   select id, name, role, market, last_seen
   from public.profiles;
+
+create or replace view public.seller_public_profiles with (security_barrier = true) as
+  select
+    p.id,
+    coalesce(nullif(trim(p.store_name), ''), sp.shop_name, p.name) as store_name,
+    coalesce(nullif(trim(sp.market), ''), p.market) as market,
+    sp.verified,
+    p.show_whatsapp,
+    case when p.show_whatsapp then nullif(trim(p.whatsapp_number), '') else null end as whatsapp_number,
+    nullif(trim(p.group_link), '') as group_link
+  from public.profiles p
+  join public.seller_profiles sp on sp.id = p.id
+  where p.role = 'seller';
 
 create or replace function public.is_market_moderator()
 returns boolean
@@ -707,15 +770,17 @@ revoke all on public.prices, public.reports, public.profiles, public.seller_prof
 grant select on public.prices, public.price_history to anon, authenticated;
 grant select on public.reports to authenticated;
 grant insert (name,country,city,market,item,unit,currency,price,photo_url) on public.reports to anon, authenticated;
-grant select (id,name,phone,role,market,data_saver,auto_download_vn,sync_only_wifi,notify_message,notify_call,notify_sound,notify_vibrate,do_not_disturb,timezone,push_player_id,last_seen,created_at) on public.profiles to authenticated;
+grant select (id,name,phone,store_name,whatsapp_number,show_whatsapp,group_link,role,market,data_saver,auto_download_vn,sync_only_wifi,notify_message,notify_call,notify_sound,notify_vibrate,do_not_disturb,timezone,push_player_id,last_seen,created_at) on public.profiles to authenticated;
 grant insert (id,name,phone,role,market,data_saver,auto_download_vn,notify_message,notify_call) on public.profiles to authenticated;
-grant update (name,phone,market,data_saver,auto_download_vn,sync_only_wifi,notify_message,notify_call,notify_sound,notify_vibrate,do_not_disturb,timezone,push_player_id,last_seen) on public.profiles to authenticated;
+grant update (name,phone,store_name,whatsapp_number,show_whatsapp,group_link,market,data_saver,auto_download_vn,sync_only_wifi,notify_message,notify_call,notify_sound,notify_vibrate,do_not_disturb,timezone,push_player_id,last_seen) on public.profiles to authenticated;
 grant select on public.public_profiles to authenticated;
+grant select on public.seller_public_profiles to anon, authenticated;
 grant select on public.seller_profiles to anon;
 grant select on public.seller_profiles to authenticated;
 grant insert (id,shop_name,market), update (shop_name,market) on public.seller_profiles to authenticated;
 grant select, insert (seller_id,item,price,unit,market,city,country,currency,photo_url) on public.seller_posts to authenticated;
 grant select on public.pending_reviews, public.conversations, public.messages, public.calls, public.alerts to authenticated;
+grant select on public.profiles, public.messages, public.calls to service_role;
 grant select on public.markets to anon, authenticated;
 grant insert (user_id,item,market,target_price,currency,contact) on public.alerts to anon, authenticated;
 grant update (enabled) on public.alerts to authenticated;
@@ -730,6 +795,7 @@ grant execute on function public.verify_price(bigint) to authenticated;
 grant execute on function public.update_call_status(uuid,text) to authenticated;
 revoke all on function public.apply_price_listing(text,text,text,text,text,numeric,text,uuid,text,text) from public, anon, authenticated;
 revoke all on function public.create_market_eye_profile() from public, anon, authenticated;
+revoke all on function public.sync_market_eye_seller_profile() from public, anon, authenticated;
 revoke all on function public.count_seller_posts() from public, anon, authenticated;
 revoke all on function public.auto_review_seller_post() from public, anon, authenticated;
 revoke all on function public.queue_price_report() from public, anon, authenticated;

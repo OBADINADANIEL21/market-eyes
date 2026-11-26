@@ -9,6 +9,7 @@ import { syncOfflineQueue } from "./lib/offlineQueue";
 const Home = lazy(() => import("./components/Home"));
 const Search = lazy(() => import("./components/Search"));
 const Compare = lazy(() => import("./components/Compare"));
+const BulkCompare = lazy(() => import("./components/BulkCompare"));
 const Report = lazy(() => import("./components/Report"));
 const Auth = lazy(() => import("./components/Auth"));
 const Markets = lazy(() => import("./components/Markets"));
@@ -25,6 +26,7 @@ const pages = {
   markets: { labelKey: "nav.markets", label: "Markets", icon: "🛍️", component: Markets, path: "/markets" },
   search: { labelKey: "nav.search", label: "Search Prices", icon: "🔎", component: Search, path: "/search" },
   compare: { labelKey: "nav.compare", label: "Compare", icon: "⚖️", component: Compare, path: "/compare" },
+  bulk: { labelKey: "nav.compare", label: "Bulk compare", icon: "🧺", component: BulkCompare, path: "/compare-bulk" },
   report: { labelKey: "nav.report", label: "Report", icon: "📝", component: Report, path: "/report" },
   auth: { labelKey: "nav.auth", label: "Log in", icon: "🔐", component: Auth, path: "/auth" },
   seller: { labelKey: "nav.seller", label: "Seller", icon: "🏪", component: Seller, path: "/seller", protected: true },
@@ -37,11 +39,15 @@ const pages = {
 };
 
 function routeFromLocation() {
+  const hashParams = new URLSearchParams(window.location.hash.slice(1));
+  if (hashParams.get("type") === "recovery") {
+    return { page: "auth", chatId: null, authMode: "update" };
+  }
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
   const chatMatch = path.match(/^\/chat\/([^/]+)$/);
   if (chatMatch) return { page: "chat", chatId: decodeURIComponent(chatMatch[1]) };
   const entry = Object.entries(pages).find(([, page]) => page.path === path);
-  return { page: entry?.[0] ?? "home", chatId: null };
+  return { page: entry?.[0] ?? "home", chatId: null, authMode: null };
 }
 
 class PageErrorBoundary extends Component {
@@ -92,7 +98,7 @@ function Shell() {
       ? `/chat/${encodeURIComponent(params.chatId)}`
       : item.path;
     if (window.location.pathname !== path) window.history.pushState({}, "", path);
-    setRoute({ page: nextPage, chatId: params.chatId ?? null });
+    setRoute({ page: nextPage, chatId: params.chatId ?? null, authMode: null });
   };
 
   useEffect(() => {
@@ -220,7 +226,7 @@ function Shell() {
         ) : (
           <PageErrorBoundary key={`${page}-${route.chatId ?? ""}`}>
             <Suspense fallback={<div className="p-10 text-center" role="status">Loading…</div>}>
-              <CurrentPage goTo={navigate} chatId={route.chatId} />
+              <CurrentPage goTo={navigate} chatId={route.chatId} authMode={route.authMode} />
             </Suspense>
           </PageErrorBoundary>
         )}
