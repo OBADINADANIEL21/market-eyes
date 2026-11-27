@@ -9,12 +9,14 @@ import EmptyState from "./EmptyState";
 const selectCls =
   "w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-brand focus:outline-none font-medium bg-white";
 
-export default function Search({ goTo }) {
+export default function Search({ goTo, searchQuery = "", onSearchChange = () => {} }) {
   const { profile } = useAuth();
   const { t, mama, lang } = useSettings();
   const { prices, rates, loading, loadingMore, hasMore, loadMore, lastUpdated, now, dataSource, dataError } = useLivePrices();
   const [city, setCity] = useState("");
-  const [query, setQuery] = useState("");
+  const query = searchQuery;
+  const setQuery = onSearchChange;
+  const [filtersOpen, setFiltersOpen] = useState(true);
   const [storeQuery, setStoreQuery] = useState("");
   const [storeFilterMode, setStoreFilterMode] = useState("all");
   const [listingMode, setListingMode] = useState("all");
@@ -139,6 +141,22 @@ export default function Search({ goTo }) {
         </div>
       )}
 
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold">Find prices</h2>
+          <p className="text-sm text-gray-500">Search results with filters for market, city and store.</p>
+        </div>
+        <button
+          type="button"
+          aria-expanded={filtersOpen}
+          aria-controls="price-search-filters"
+          onClick={() => setFiltersOpen((open) => !open)}
+          className="rounded-xl border-2 border-brand px-4 py-2 font-bold text-brand hover:bg-brand-soft"
+        >
+          {filtersOpen ? "Hide filters" : "Filters"}
+        </button>
+      </div>
+      {filtersOpen && <div id="price-search-filters">
       {/* Filters */}
       <div className="mb-4 flex gap-2" role="tablist" aria-label="Price search mode">
         {[["all", "All Items"], ["market", "By Market"]].map(([value, label]) => <button key={value} role="tab" aria-selected={listingMode === value} onClick={() => setListingMode(value)} className={`rounded-full px-4 py-2 font-semibold ${listingMode === value ? "bg-brand text-white" : "bg-white text-gray-700"}`}>{label}</button>)}
@@ -168,7 +186,7 @@ export default function Search({ goTo }) {
           </select>
         </div>
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1">{t("search.item")}</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-1">Refine item search or use voice</label>
           <div className="flex gap-2">
             <input
               type="text"
@@ -199,6 +217,7 @@ export default function Search({ goTo }) {
           <input type="search" value={storeQuery} onChange={(event) => setStoreQuery(event.target.value)} placeholder="e.g. Mama Nkechi Stores" className={selectCls} />
         </div>
       </div>
+      </div>}
 
       {/* Quick-pick emoji chips (great for Mama Mode) */}
       <div className="flex flex-wrap items-center gap-2 mb-6" role="group" aria-label={t("search.quick")}>

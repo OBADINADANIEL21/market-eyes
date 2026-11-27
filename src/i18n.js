@@ -20,8 +20,8 @@ export const translations = {
     "toggle.mama": "Mama Mode",
 
     // Hero
-    "hero.badge": "🇳🇬 Nigerian market price estimates",
-    "hero.title": "Explore Nigerian Market Prices\nBefore You Go Shopping",
+    "hero.badge": "🇳🇬 Nigerian market price listings",
+    "hero.title": "Check Market Prices\nBefore You Go Shopping",
     "hero.subtitle": "Compare listings from Nigerian markets. Confirm prices locally before buying.",
     "hero.cta": "Explore Prices →",
     "stats.markets": "Markets Listed",
@@ -29,9 +29,9 @@ export const translations = {
     "stats.countries": "Country",
 
     // Featured
-    "featured.title": "Market Price Estimates",
-    "featured.subtitle": "Demo estimates and simulations, not independently verified market quotes",
-    "prices.fallback": "Live prices are temporarily unavailable. Sample estimates are shown instead.",
+    "featured.title": "Recent Market Listings",
+    "featured.subtitle": "Community-submitted prices. Confirm the latest price with the market before buying.",
+    "prices.fallback": "Approved prices are temporarily unavailable. No sample prices are shown.",
     "featured.seeAll": "See all prices →",
 
     // Price card
@@ -46,7 +46,7 @@ export const translations = {
     // How it works
     "how.title": "How MARKET EYE Works",
     "how.check": "Check",
-    "how.checkDesc": "Explore sample price estimates for food items in different markets.",
+    "how.checkDesc": "Search community price listings for goods and services in different markets.",
     "how.compare": "Compare",
     "how.compareDesc": "Compare local prices across Nigerian markets.",
     "how.report": "Report",
@@ -54,7 +54,7 @@ export const translations = {
 
     // Leaderboard
     "board.title": "Top Reporters This Week",
-    "board.subtitle": "Demo ranking based on estimates and simulations, not verified weekly prices",
+    "board.subtitle": "Rankings use approved market listings from the last seven days.",
     "board.reports": "{n} reports",
 
     // Story
@@ -65,8 +65,8 @@ export const translations = {
     "story.photo": "Founder photo goes here",
 
     // Search
-    "search.title": "Explore Nigerian Market Prices 💰",
-    "search.subtitle": "Browse Nigerian price listings. Demo estimates are not verified current market quotes.",
+    "search.title": "Search Nigerian Market Prices 💰",
+    "search.subtitle": "Find community price listings by item, market, city or store. Confirm prices locally before buying.",
     "search.country": "Country",
     "search.nigeria": "Nigeria",
     "search.city": "City",
@@ -83,7 +83,7 @@ export const translations = {
 
     // Compare
     "compare.title": "Compare Prices Across Nigerian Cities 🇳🇬",
-    "compare.subtitle": "Compare Nigerian city listings. Prices may be estimates and are not independently verified.",
+    "compare.subtitle": "Compare available price listings by Nigerian city. Confirm prices locally before buying.",
     "compare.choose": "Choose an item",
     "compare.cheapest": "CHEAPEST",
     "compare.priciest": "MOST EXPENSIVE",
@@ -193,7 +193,7 @@ export const translations = {
     "nav.sync": "Pending sync",
     "toggle.mama": "Mama Mode",
 
-    "hero.badge": "🇳🇬 Nigerian market price estimates",
+    "hero.badge": "🇳🇬 Nigerian market price listings",
     "hero.title": "See Nigerian Market Prices\nBefore You Enter Market",
     "hero.subtitle": "Compare listings from Nigerian markets. Check your area before you buy.",
     "hero.cta": "See Price Estimates →",
@@ -201,9 +201,9 @@ export const translations = {
     "stats.prices": "Price Listings",
     "stats.countries": "Country",
 
-    "featured.title": "Market Price Estimates",
-    "featured.subtitle": "Demo estimates and simulations, dem never verify am for market",
-    "prices.fallback": "Live prices no dey available for now. We dey show sample estimates instead.",
+    "featured.title": "Recent Market Listings",
+    "featured.subtitle": "People for community submit these prices. Confirm am for market before you buy.",
+    "prices.fallback": "Approved prices no dey available now. We no dey show sample prices.",
     "featured.seeAll": "See all prices →",
 
     "trend.up": "▲ E Dey Go Up",
@@ -216,14 +216,14 @@ export const translations = {
 
     "how.title": "How MARKET EYE Dey Work",
     "how.check": "Check",
-    "how.checkDesc": "See sample price estimates for food items for different markets.",
+    "how.checkDesc": "Search community price listings for goods and services for different markets.",
     "how.compare": "Compare",
     "how.compareDesc": "Compare local prices across Nigerian markets.",
     "how.report": "Report",
     "how.reportDesc": "Record price wey you see. Report dey stay for your device and dem never verify am.",
 
     "board.title": "Who Dey Report Pass This Week",
-    "board.subtitle": "Demo ranking from estimates and simulations, no be confirmed weekly price",
+    "board.subtitle": "Ranking na approved market listings wey dem add for the last seven days.",
     "board.reports": "{n} reports",
 
     "story.kicker": "Our Story",
@@ -232,8 +232,8 @@ export const translations = {
       "Every market day, correct buyer no fit know which price na real and which one na lie. MARKET EYE put the real price for your pocket, people like you don confirm am.",
     "story.photo": "Founder photo go dey here",
 
-    "search.title": "See Nigerian Market Prices 💰",
-    "search.subtitle": "Browse Nigerian price listings. Demo prices no be confirmed current market prices.",
+    "search.title": "Search Nigerian Market Prices 💰",
+    "search.subtitle": "Find community price listings by item, market, city or store. Confirm price for market before you buy.",
     "search.country": "Country",
     "search.city": "City",
     "search.item": "Search Item",
@@ -248,7 +248,7 @@ export const translations = {
     "search.clear": "Clear filters",
 
     "compare.title": "Compare Prices Across Nigerian Cities 🇳🇬",
-    "compare.subtitle": "Compare Nigerian city listings. Dem fit be estimate; nobody verify am for market.",
+    "compare.subtitle": "Compare available price listings by Nigerian city. Confirm price for market before you buy.",
     "compare.choose": "Choose item",
     "compare.cheapest": "NA THE CHEAPEST",
     "compare.priciest": "NA THE COSTLIEST",

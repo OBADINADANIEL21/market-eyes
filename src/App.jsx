@@ -47,13 +47,19 @@ const pages = {
 function routeFromLocation() {
   const hashParams = new URLSearchParams(window.location.hash.slice(1));
   if (hashParams.get("type") === "recovery") {
-    return { page: "auth", chatId: null, authMode: "update" };
+    return { page: "auth", chatId: null, authMode: "update", query: "" };
   }
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
   const chatMatch = path.match(/^\/chat\/([^/]+)$/);
-  if (chatMatch) return { page: "chat", chatId: decodeURIComponent(chatMatch[1]) };
+  if (chatMatch) return { page: "chat", chatId: decodeURIComponent(chatMatch[1]), query: "" };
   const entry = Object.entries(pages).find(([, page]) => page.path === path);
-  return { page: entry?.[0] ?? "home", chatId: null, authMode: null };
+  const page = entry?.[0] ?? "home";
+  return {
+    page,
+    chatId: null,
+    authMode: null,
+    query: page === "search" ? new URLSearchParams(window.location.search).get("q") ?? "" : "",
+  };
 }
 
 class PageErrorBoundary extends Component {
@@ -92,6 +98,7 @@ function Shell() {
   const [toast, setToast] = useState("");
   const [unreadCount, setUnreadCount] = useState(0);
   const [missedCallCount, setMissedCallCount] = useState(0);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState(() => routeFromLocation().query);
   const page = route.page;
 
   useEffect(() => {
@@ -103,12 +110,28 @@ function Shell() {
     const path = nextPage === "chat" && params.chatId
       ? `/chat/${encodeURIComponent(params.chatId)}`
       : item.path;
-    if (window.location.pathname !== path) window.history.pushState({}, "", path);
-    setRoute({ page: nextPage, chatId: params.chatId ?? null, authMode: null });
+    const query = nextPage === "search" ? (params.query ?? globalSearchQuery).trim() : "";
+    const destination = nextPage === "search" && query ? `${path}?q=${encodeURIComponent(query)}` : path;
+    if (`${window.location.pathname}${window.location.search}` !== destination) window.history.pushState({}, "", destination);
+    if (nextPage === "search") setGlobalSearchQuery(query);
+    setRoute({ page: nextPage, chatId: params.chatId ?? null, authMode: null, query });
+  };
+
+  const updateSearchQuery = (query) => {
+    setGlobalSearchQuery(query);
+    if (page === "search") {
+      const destination = query.trim() ? `/search?q=${encodeURIComponent(query.trim())}` : "/search";
+      window.history.replaceState({}, "", destination);
+      setRoute((current) => ({ ...current, query }));
+    }
   };
 
   useEffect(() => {
-    const onPopState = () => setRoute(routeFromLocation());
+    const onPopState = () => {
+      const nextRoute = routeFromLocation();
+      setGlobalSearchQuery(nextRoute.query);
+      setRoute(nextRoute);
+    };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
@@ -216,7 +239,13 @@ function Shell() {
 
   return (
     <div className={`min-h-screen bg-gray-50 font-sans text-gray-900 flex flex-col ${mama ? "mama-mode" : ""}`}>
-      {!loading && <Navbar pages={visiblePages} page={page} setPage={navigate} />}
+      {!loading && <Navbar
+        pages={visiblePages}
+        page={page}
+        setPage={navigate}
+        searchValue={globalSearchQuery}
+        onSearchChange={updateSearchQuery}
+      />}
       {!online && <div role="status" className="bg-amber-100 px-4 py-2 text-center text-sm font-semibold text-amber-950">You are OFFLINE — showing last saved prices and chats. New items will sync when you reconnect.</div>}
       {online && slowNetwork && <div role="status" className="bg-amber-50 px-4 py-2 text-center text-sm font-semibold text-amber-900">Slow network — text-only mode; video calls are unavailable.</div>}
       {toast && <div role="status" className="fixed right-4 top-20 z-[70] rounded-xl bg-emerald-800 px-4 py-3 text-white shadow-lg">{toast}</div>}
@@ -232,7 +261,13 @@ function Shell() {
         ) : (
           <PageErrorBoundary key={`${page}-${route.chatId ?? ""}`}>
             <Suspense fallback={<div className="p-10 text-center" role="status">Loading…</div>}>
-              <CurrentPage goTo={navigate} chatId={route.chatId} authMode={route.authMode} />
+              <CurrentPage
+                goTo={navigate}
+                chatId={route.chatId}
+                authMode={route.authMode}
+                searchQuery={globalSearchQuery}
+                onSearchChange={updateSearchQuery}
+              />
             </Suspense>
           </PageErrorBoundary>
         )}
